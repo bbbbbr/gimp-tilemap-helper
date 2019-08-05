@@ -1,0 +1,5 @@
+/plugin-gimp-tilemap-helper
+*.zip
+*.7z
+obj/
+src/reference/
