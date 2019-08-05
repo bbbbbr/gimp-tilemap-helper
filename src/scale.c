@@ -1,0 +1,180 @@
+//
+// scale.c
+//
+
+// ========================
+//
+// Scaler support
+//
+// ========================
+
+
+
+#include "scale.h"
+
+static scaled_output_info scaled_output;
+static gint scale_factor;
+
+
+// Returns scale factor (x 2, x 3, etc) of a scaler
+//
+gint scale_factor_get() {
+
+    return (scale_factor);
+}
+
+
+// Sets scale factor (SCALE_FACTOR_MIN .. 2, 3, .. SCALE_FACTOR_MAX)
+//
+// scaler_index: desired scaler (from the enum scaler_list)
+//
+void scale_factor_set(gint scale_factor_new) {
+
+    // Update local scale factor setting
+    scale_factor = scale_factor_new;
+
+    // Enforce min/max bounds
+    if      (scale_factor < SCALE_FACTOR_MIN)
+             scale_factor = SCALE_FACTOR_MIN;
+
+    else if (scale_factor > SCALE_FACTOR_MAX)
+             scale_factor = SCALE_FACTOR_MAX;
+}
+
+
+
+// scaled_info_get
+//
+// Returns structure (type scaled_output_info)
+// with details about the current rendered
+// output image (scale mode, width, height, factor, etc)
+//
+// Used to assist with output caching
+//
+scaled_output_info * scaled_info_get(void) {
+    return &scaled_output;
+}
+
+
+// scaled_output_check_reapply_scalers
+//
+// Checks whether the scaler needs to be re-applied
+// depending on whether the scale factor has changed
+//
+// Used to assist with output caching
+//
+gint scaled_output_check_reapply_scale() {
+
+    // If either the scale factor changed or there is no valid
+    // image rendered at the moment, then signal TRUE to indicate
+    // scaling should be re-applied
+    return ((scaled_output.scale_factor != scale_factor) ||
+            (scaled_output.valid_image == FALSE));
+}
+
+
+// scaled_output_check_reallocate
+//
+// Update output buffer size and re-allocate if needed
+//
+void scaled_output_check_reallocate(gint width_new, gint height_new)
+{
+    if ((scale_factor                != scaled_output.scale_factor) ||
+        ((width_new  * scale_factor) != scaled_output.width) ||
+        ((height_new * scale_factor) != scaled_output.height) ||
+        (scaled_output.p_scaledbuf == NULL)) {
+
+        // Update the buffer size and re-allocate. The x uint32_t is for RGBA buffer size
+        scaled_output.width        = width_new  * scale_factor;
+        scaled_output.height       = height_new * scale_factor;
+        scaled_output.scale_factor = scale_factor;
+        scaled_output.size_bytes  = scaled_output.width * scaled_output.height * BYTE_SIZE_RGBA_4BPP;
+
+        if (scaled_output.p_scaledbuf) {
+            g_free(scaled_output.p_scaledbuf);
+            scaled_output.p_scaledbuf = NULL;
+        }
+
+        // 32 bit to ensure alignment, divide size since it's in BYTES
+        scaled_output.p_scaledbuf = (uint32_t *) g_new (guint32, scaled_output.size_bytes / BYTE_SIZE_RGBA_4BPP);
+
+        // Invalidate the image
+        scaled_output.valid_image = FALSE;
+    }
+}
+
+
+// scaled_output_init
+//
+// Initialize rendered output shared structure
+//
+void scaled_output_init(void)
+{
+      scaled_output.p_scaledbuf  = NULL;
+      scaled_output.width        = 0;
+      scaled_output.height       = 0;
+      scaled_output.x            = 0;
+      scaled_output.y            = 0;
+      scaled_output.scale_factor = 0;
+      scaled_output.size_bytes   = 0;
+      scaled_output.bpp          = 0;
+      scaled_output.valid_image  = FALSE;
+}
+
+
+
+// scaler_apply
+//
+// Calls selected scaler function
+// Updates valid_image to assist with caching
+//
+void scale_apply(uint32_t * p_srcbuf, uint32_t * p_destbuf, int width, int height) {
+
+    if ((p_srcbuf == NULL) || (p_destbuf == NULL))
+        return;
+
+    if (scale_factor) {
+
+        // Call the requested scaler function
+        /*
+        scalers[scaler_mode].scaler_function( (uint32_t*) p_srcbuf,
+                                              (uint32_t*) p_destbuf,
+                                                    (int) width,
+                                                    (int) height);
+        scaled_output.bpp = BYTE_SIZE_RGBA_4BPP;
+        scaled_output.scaler_mode = scaler_mode;
+        scaled_output.valid_image = TRUE;
+        */
+    }
+}
+
+
+
+
+// pixel_art_scalers_release_resources
+//
+// Release the scaled output buffer.
+// Should be called only at the very
+// end of the plugin shutdown (not on dialog close)
+//
+void scale_release_resources(void) {
+
+  if (scaled_output.p_scaledbuf) {
+      g_free(scaled_output.p_scaledbuf);
+      scaled_output.p_scaledbuf = NULL;
+  }
+}
+
+
+// scalers_init
+//
+// Populate the shared list of available scalers with their names
+// calling functions and scale factors.
+//
+void scale_init(void) {
+
+    scaled_output_init();
+
+    // Now set the default scaler
+    scale_factor = SCALE_FACTOR_DEFAULT;
+ }
