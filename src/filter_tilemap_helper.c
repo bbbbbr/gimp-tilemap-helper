@@ -17,7 +17,7 @@
 #include <libgimp/gimpui.h>
 
 #include "filter_dialog.h"
-// #include "filter_scalers.h"
+#include "scale.h"
 
 
 
@@ -85,7 +85,8 @@ static void query(void)
                             "Copyright --",
                             "2019",
                             "T_ilemap Helper ...",
-                            "RGB*, INDEXED*",
+//                            "RGB*",
+                            "RGB*, INDEXED*", // TODO: indexed support
                             GIMP_PLUGIN,
                             G_N_ELEMENTS (args),
                             0,
@@ -127,6 +128,7 @@ static void run(const gchar      * name,
 
 printf("Filter Main: run mode=%d\n",run_mode);
 
+    scale_init();
 
     switch (run_mode) {
         case GIMP_RUN_INTERACTIVE:

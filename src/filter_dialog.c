@@ -19,7 +19,7 @@
 #include <libgimp/gimpui.h>
 
 #include "filter_dialog.h"
-// #include "filter_scalers.h"
+#include "scale.h"
 
 
 
@@ -27,16 +27,17 @@ extern const char PLUG_IN_PROCEDURE[];
 extern const char PLUG_IN_ROLE[];
 extern const char PLUG_IN_BINARY[];
 
-
-//static void dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
-//static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
-//static void on_settings_scaler_combo_changed (GtkComboBox *, gpointer);
-//gboolean preview_scaled_size_allocate_event(GtkWidget *, GdkEvent *, GtkWidget *);
+static void dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
+static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
+static void on_settings_scaler_combo_changed (GtkComboBox *, gpointer);
+gboolean preview_scaled_size_allocate_event(GtkWidget *, GdkEvent *, GtkWidget *);
 
 
 // Widget for displaying the upscaled image preview
-// static GtkWidget * preview_scaled;
+static GtkWidget * preview_scaled;
 
+
+GimpDrawable * p_drawable;
 
 
 /*******************************************************/
@@ -47,8 +48,8 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
   GtkWidget * dialog;
   GtkWidget * main_vbox;
   GtkWidget * preview_hbox;
-  GtkWidget * preview;
-//  GtkWidget * scaled_preview_window;
+//  GtkWidget * preview;
+  GtkWidget * scaled_preview_window;
 
   GtkWidget * settings_table;
 //  GtkWidget * settings_scaler_combo;
@@ -105,17 +106,19 @@ printf("Opening Dialog\n");
 
     // Create source image preview and scaled preview areas
     // along with a scrolled window area for the scaled preview
-    preview = gimp_drawable_preview_new (drawable, NULL);
-//    preview_scaled = gimp_preview_area_new();
-//    scaled_preview_window = gtk_scrolled_window_new (NULL, NULL);
+    // gimp_drawable_preview_new() is deprecated as of 2.10 -> gimp_drawable_preview_new_from_drawable_id()
+//    preview = gimp_drawable_preview_new (drawable, NULL);
+
+    preview_scaled = gimp_preview_area_new();
+    scaled_preview_window = gtk_scrolled_window_new (NULL, NULL);
 
 
     // Display the source image preview area, set it to not expand if window grows
     //gtk_box_pack_start (GTK_BOX (preview_hbox), preview, FALSE, TRUE, 0);
-    gtk_box_pack_start (GTK_BOX (main_vbox), preview, TRUE, TRUE, 0);
-    gtk_widget_show (preview);
+//    gtk_box_pack_start (GTK_BOX (main_vbox), preview, TRUE, TRUE, 0);
+//    gtk_widget_show (preview);
 
-/*
+
     // Automatic scrollbars for scrolled preview window
     gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scaled_preview_window),
                                     GTK_POLICY_AUTOMATIC,
@@ -126,20 +129,28 @@ printf("Opening Dialog\n");
     // and then display them both (with auto-resize)
     gtk_scrolled_window_add_with_viewport((GtkScrolledWindow *)scaled_preview_window,
                                               preview_scaled);
-    gtk_box_pack_start (GTK_BOX (preview_hbox), scaled_preview_window, TRUE, TRUE, 0);
+//    gtk_box_pack_start (GTK_BOX (preview_hbox), scaled_preview_window, TRUE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (main_vbox), scaled_preview_window, TRUE, TRUE, 0);
     gtk_widget_show (scaled_preview_window);
     gtk_widget_show (preview_scaled);
-*/
+
 
     // Wire up source image preview redraw to call the (re)draw
-    g_signal_connect_swapped (preview,
+    //g_signal_connect_swapped (preview, // TODO: FIXME: swapped preview to preview scaled - clean up downstream
+    //g_signal_connect_swapped (scaled_preview_window,
+    g_signal_connect_swapped (preview_scaled,
                               "invalidated",
                               G_CALLBACK (tilemap_dialog_processing_run),
                               drawable);
+// TODO: FIXME: HACK HACK HACK - no other widgets beside preview so far take invalidate,
+//              so copy drawable to a global (p_drawable) and
+//              call tilemap_dialog_processing_run() from preview_scaled_size_allocate_event()
+    p_drawable = drawable;
+
 
     // resize scaled preview -> destroys scaled preview buffer -> resizes scroll window -> size-allocate -> redraw preview buffer
     // This fixes the scrolled window inhibiting the redraw when the size changed
-//    g_signal_connect(preview_scaled, "size-allocate", G_CALLBACK(preview_scaled_size_allocate_event), (gpointer)scaled_preview_window);
+    g_signal_connect(preview_scaled, "size-allocate", G_CALLBACK(preview_scaled_size_allocate_event), (gpointer)scaled_preview_window);
 
 
     // Create 1 x 3 table for Settings, non-homogonous sizing, attach to main vbox
@@ -185,6 +196,9 @@ printf("Opening Dialog\n");
                               preview);
 */
 
+// TODO: TEMP-TEST set scaler manually
+scale_factor_set(2);
+
   gtk_widget_show (dialog);
 
   run = (gimp_dialog_run (GIMP_DIALOG (dialog)) == GTK_RESPONSE_OK);
@@ -197,7 +211,7 @@ printf("Opening Dialog\n");
 }
 
 
-/*
+
 // preview_scaled_size_allocate_event
 //
 // Handler for widget resize changes of the scaled output preview area
@@ -209,28 +223,44 @@ gboolean preview_scaled_size_allocate_event(GtkWidget * widget, GdkEvent *event,
 {
     scaled_output_info * scaled_output;
 
+printf("preview_scaled_size_allocate_event\n");
+
     scaled_output = scaled_info_get();
 
     if (widget == NULL)
       return 1; // Exit, failed
 
+
+// TODO: FIXME: HACK HACK HACK (workaround for no invalidated signal)
+tilemap_dialog_processing_run(p_drawable, (GimpPreview *)1); // <-- bad bad bad
+
+
+
     // Redraw the scaled preview if it's available
     if ( (scaled_output->p_scaledbuf != NULL) &&
          (scaled_output->valid_image == TRUE) ) {
-        gimp_preview_area_draw (GIMP_PREVIEW_AREA (widget),  // Calling widget should be preview_scaled
-                                0, 0,
-                                scaled_output->width,
+
+ // called by above... is this redundant?
+/*
+        // TODO: use gimp_preview_area_blend() to mix overlay and source image?
+        // Calling widget should be: preview_scaled
+        gimp_preview_area_draw (GIMP_PREVIEW_AREA (widget),
+                                0, 0,                  // x,y
+                                scaled_output->width,  // width, height
                                 scaled_output->height,
-                                GIMP_RGBA_IMAGE,
-                                (guchar *) scaled_output->p_scaledbuf,
-                                scaled_output->width * BYTE_SIZE_RGBA_4BPP);
+                                gimp_drawable_type (p_drawable->drawable_id),             // GimpImageType (source image)
+                                // scaled_output->bpp,    // GimpImageType     // TODO: GIMP_RGBA_IMAGE,
+                                (guchar *) scaled_output->p_scaledbuf,      // Source buffer
+                                scaled_output->width * scaled_output->bpp); // Row-stride
+                                // scaled_output->width * BYTE_SIZE_RGBA_4BPP); // TODO: fix
+*/
     }
 
     return FALSE;
 }
 
 
-
+/*
 // on_settings_scaler_combo_changed
 //
 // Handler for "changed" signal of SCALER MODE combo box
@@ -252,7 +282,7 @@ static void on_settings_scaler_combo_changed(GtkComboBox *combo, gpointer callba
     }
 }
 
-
+*/
 
 // dialog_scaled_preview_check_resize
 //
@@ -265,6 +295,8 @@ static void on_settings_scaler_combo_changed(GtkComboBox *combo, gpointer callba
 static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint width_new, gint height_new, gint scale_factor_new)
 {
     gint width_current, height_current;
+
+printf("dialog_scaled_preview_check_resize\n");
 
     // Get current size for scaled preview area
     gtk_widget_get_size_request (preview_scaled, &width_current, &height_current);
@@ -287,7 +319,7 @@ static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint 
     }
 }
 
-*/
+
 
 /*******************************************************/
 /*   Create the dialog preview image or output layer   */
@@ -311,24 +343,29 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     gint         width, height;
     gint         x, y;
     guint        scale_factor;
-    uint32_t   * p_srcbuf = NULL;
+    uint8_t    * p_srcbuf = NULL;
     glong        srcbuf_size = 0;
-//    scaled_output_info * scaled_output;
+    scaled_output_info * scaled_output;
 
 
-//    scaled_output = scaled_info_get();
-//    scale_factor = scaler_scale_factor_get( scaler_mode_get() );
+    scaled_output = scaled_info_get();
+    scale_factor = scale_factor_get();  // TODO: Set scale factor here? Used to pull scale factor from mode
 
+printf("Redraw scaled at %dx\n", scale_factor);
 
 // TODO: Always use the entire image?
+
     // Get the working image area for either the preview sub-window or the entire image
     if (preview) {
-        gimp_preview_get_position (preview, &x, &y);
-        gimp_preview_get_size (preview, &width, &height);
+        // gimp_preview_get_position (preview, &x, &y);
+        // gimp_preview_get_size (preview, &width, &height);
+        if (! gimp_drawable_mask_intersect (drawable->drawable_id,
+                                                 &x, &y, &width, &height)) {
+            return;
+        }
 
-//        dialog_scaled_preview_check_resize( preview_scaled, width, height, scale_factor);
-    }
-    else if (! gimp_drawable_mask_intersect (drawable->drawable_id,
+        dialog_scaled_preview_check_resize( preview_scaled, width, height, scale_factor);
+    } else if (! gimp_drawable_mask_intersect (drawable->drawable_id,
                                              &x, &y, &width, &height)) {
         return;
     }
@@ -339,20 +376,23 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 
 // TODO: scaled_output_check_reallocate
     // Allocate output buffer for upscaled image
-//    scaled_output_check_reallocate(scale_factor, width, height);
+    scaled_output_check_reallocate(bpp, width, height);
 
-/*
-    if (scaled_output_check_reapply_scalers(scaler_mode_get(), x, y)) {
+    if (scaled_output_check_reapply_scale()) {
 
         // ====== GET THE SOURCE IMAGE ======
-
+/*
         // Allocate a working buffer to copy the source image into - always RGBA 4BPP
         // 32 bit to ensure alignment, divide size since it's in BYTES
         srcbuf_size = width * height * BYTE_SIZE_RGBA_4BPP;
         p_srcbuf = (uint32_t *) g_new (guint32, srcbuf_size / BYTE_SIZE_RGBA_4BPP);
+*/
+        // Allocate a working buffer to copy the source image into
+        srcbuf_size = width * height * bpp;
+        p_srcbuf = (uint8_t *) g_new (guint8, srcbuf_size);
 
 
-        // FALSE, FALSE : region will be used to read the actual drawable datas
+        // FALSE, FALSE : region will be used to read the actual drawable data
         // Initialize source pixel region with drawable
         gimp_pixel_rgn_init (&src_rgn,
                              drawable,
@@ -365,47 +405,65 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
                                  (guchar *) p_srcbuf,
                                  x, y, width, height);
 
+/*
         // Add alpha channel byte to source buffer if needed (scalers expect 4BPP RGBA)
         if (bpp == BYTE_SIZE_RGB_3BPP)  // i.e. !has_alpha
             buffer_add_alpha_byte((guchar *) p_srcbuf, srcbuf_size);
-
+*/
 
 
         // ====== APPLY THE SCALER ======
 
-        // Expects 4BPP RGBA in p_srcbuf, outputs same to p_scaledbuf
-        scaler_apply(scaler_mode_get(),
-                     p_srcbuf,
-                     scaled_output->p_scaledbuf,
-                     (int) width, (int) height);
+        // TODO: remove comment ---Expects 4BPP RGBA in p_srcbuf, outputs same to p_scaledbuf
+        scale_apply(p_srcbuf,
+                    scaled_output->p_scaledbuf,
+                    bpp,
+                    width, height);
     }
     // Filter is done, apply the update
     if (preview) {
 
+/*
         // Draw scaled image onto preview area
-        // Expects 4BPP RGBA
+        // TODO: remove comment ---Expects 4BPP RGBA
         gimp_preview_area_draw (GIMP_PREVIEW_AREA (preview_scaled),
                                 0, 0,
                                 scaled_output->width,
                                 scaled_output->height,
-                                GIMP_RGBA_IMAGE,
+                                bpp, // TODO: remove comment - GIMP_RGBA_IMAGE,
                                 (guchar *) scaled_output->p_scaledbuf,
-                                scaled_output->width * BYTE_SIZE_RGBA_4BPP);
+                                scaled_output->width * bpp);
+                                //scaled_output->width * BYTE_SIZE_RGBA_4BPP); // TODO: fix
+*/
+
+                                        // TODO: use gimp_preview_area_blend() to mix overlay and source image?
+        // Calling widget should be: preview_scaled
+        gimp_preview_area_draw (GIMP_PREVIEW_AREA (preview_scaled),
+                                0, 0,                  // x,y
+                                scaled_output->width,  // width, height
+                                scaled_output->height,
+                                gimp_drawable_type (drawable->drawable_id),             // GimpImageType (source image)
+                                (guchar *) scaled_output->p_scaledbuf,      // Source buffer
+                                scaled_output->width * scaled_output->bpp); // Row-stride
+
     }
     else
     {
+/*
         // Remove the alpha byte from the scaled output if the source image was 3BPP RGB
         if ((bpp == BYTE_SIZE_RGB_3BPP) & (scaled_output->bpp != BYTE_SIZE_RGB_3BPP)) { // i.e. !has_alpha
             buffer_remove_alpha_byte((guchar *) scaled_output->p_scaledbuf, scaled_output->size_bytes);
             scaled_output->bpp = BYTE_SIZE_RGB_3BPP;
         }
-
+*/
+/*
         // Apply image result with full resize
         resize_image_and_apply_changes(drawable,
                                        (guchar *) scaled_output->p_scaledbuf,
                                        scaled_output->scale_factor);
-    }
 */
+    }
+
 
     // Free the working buffer
     if (p_srcbuf)
