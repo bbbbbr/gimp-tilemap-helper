@@ -118,7 +118,6 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     // Wire up scaled preview redraw to the size-allocate event (Window changed size/etc)
     // resize scaled preview -> destroys scaled preview buffer -> resizes scroll window -> size-allocate -> redraw preview buffer
     // This fixes the scrolled window inhibiting the redraw when the size changed
-    //g_signal_connect(preview_scaled, "size-allocate", G_CALLBACK(preview_scaled_update), (gpointer)scaled_preview_window);
     g_signal_connect_swapped(preview_scaled,
                              "size-allocate",
                              G_CALLBACK(tilemap_dialog_processing_run), drawable);
@@ -169,36 +168,21 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     g_signal_connect_swapped (settings_scale_spinbutton,
                               "value-changed",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
-                              // G_CALLBACK(preview_scaled_update), (gpointer)scaled_preview_window);
 
 
 
-  gtk_widget_show (dialog);
+    // ======== SHOW THE DIALOG AND RUN IT ========
 
-  run = (gimp_dialog_run (GIMP_DIALOG (dialog)) == GTK_RESPONSE_OK);
+    gtk_widget_show (dialog);
 
-  gtk_widget_destroy (dialog);
+    run = (gimp_dialog_run (GIMP_DIALOG (dialog)) == GTK_RESPONSE_OK);
 
-  return run;
+    gtk_widget_destroy (dialog);
+
+    return run;
 }
 
 
-/*
-// Handler for widget resize changes of the scaled output preview area
-//
-//   GimpPreviewArea inherits GtkWidget::size-allocate from GtkDrawingArea
-//   Preview-area resets buffer on size change so it needs a redraw
-//
-gboolean preview_scaled_update(GtkWidget * widget, GdkEvent *event, GtkWidget *window)
-{
-    printf("preview_scaled_update\n");
-
-    // TODO: FIXME: preview_scaled_size_allocate_eventHACK HACK (workaround for no invalidated signal)
-    tilemap_dialog_processing_run(p_drawable, (GimpPreview *)1); // <-- bad bad bad
-
-    return FALSE;
-}
-*/
 
 // Handler for "changed" signal of SCALER MODE combo box
 // When the user changes the scaler type -> Update the scaler mode
