@@ -29,7 +29,8 @@ extern const char PLUG_IN_BINARY[];
 
 static void dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
 static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
-static void on_settings_scaler_combo_changed (GtkComboBox *, gpointer);
+// static void on_settings_scaler_combo_changed (GtkComboBox *, gpointer);
+static void on_settings_scale_spinbutton_changed(GtkSpinButton *, gpointer);
 gboolean preview_scaled_size_allocate_event(GtkWidget *, GdkEvent *, GtkWidget *);
 
 
@@ -53,6 +54,8 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
   GtkWidget * settings_table;
 //  GtkWidget * settings_scaler_combo;
+    GtkWidget * settings_scale_spinbutton;
+    GtkWidget * settings_scale_label;
 //  GtkWidget * settings_scaler_label;
     GtkWidget * settings_tilesize_label;
 
@@ -138,10 +141,13 @@ printf("Opening Dialog\n");
     // Wire up source image preview redraw to call the (re)draw
     //g_signal_connect_swapped (preview, // TODO: FIXME: swapped preview to preview scaled - clean up downstream
     //g_signal_connect_swapped (scaled_preview_window,
+// TODO: FIXME - no longer needed -> DELETE? seems to be handled by size-allocate well enough
+/*
     g_signal_connect_swapped (preview_scaled,
                               "invalidated",
                               G_CALLBACK (tilemap_dialog_processing_run),
                               drawable);
+*/
 // TODO: FIXME: HACK HACK HACK - no other widgets beside preview so far take invalidate,
 //              so copy drawable to a global (p_drawable) and
 //              call tilemap_dialog_processing_run() from preview_scaled_size_allocate_event()
@@ -153,9 +159,9 @@ printf("Opening Dialog\n");
     g_signal_connect(preview_scaled, "size-allocate", G_CALLBACK(preview_scaled_size_allocate_event), (gpointer)scaled_preview_window);
 
 
-    // Create 1 x 3 table for Settings, non-homogonous sizing, attach to main vbox
+    // Create 2 x 3 table for Settings, non-homogonous sizing, attach to main vbox
     // TODO: Consider changing from a table to a grid (tables are deprecated)
-    settings_table = gtk_table_new (1, 3, FALSE);
+    settings_table = gtk_table_new (2, 3, FALSE);
     gtk_box_pack_start (GTK_BOX (main_vbox), settings_table, FALSE, FALSE, 0);
     gtk_table_set_homogeneous(GTK_TABLE (settings_table), TRUE);
 
@@ -163,6 +169,11 @@ printf("Opening Dialog\n");
     settings_tilesize_label = gtk_label_new ("Tile size (w x h):  " );
     gtk_misc_set_alignment(GTK_MISC(settings_tilesize_label), 1.0f, 0.5f);
 
+
+    // Add a spin button for the scale factor
+    settings_scale_label = gtk_label_new ("Zoom:  " );
+    gtk_misc_set_alignment(GTK_MISC(settings_scale_label), 1.0f, 0.5f);
+    settings_scale_spinbutton = gtk_spin_button_new_with_range(1,10,1); // Min/Max/Step
 
 /*    // Add a Combo box for the SCALER MODE
     // then add entries for the scaler types and then set default
@@ -175,12 +186,34 @@ printf("Opening Dialog\n");
 */
 
     // Attach the label and combo to the table and show them all
-    gtk_table_attach_defaults (GTK_TABLE (settings_table), settings_tilesize_label, 1, 2, 0, 1); // Middle of table
-//    gtk_table_attach_defaults (GTK_TABLE (settings_table), settings_scaler_combo, 2, 3, 0, 1); // Right side of table
+    // (*attach_to, *widget, left_attach, right_attach, top_attach, bottom_attach)
+    //
+    gtk_table_attach_defaults (GTK_TABLE (settings_table), settings_tilesize_label,   1, 2, 0, 1); // Middle of table
+//    gtk_table_attach_defaults (GTK_TABLE (settings_table), settings_scaler_combo,   2, 3, 0, 1); // Right side of table
+
+    gtk_table_attach_defaults (GTK_TABLE (settings_table), settings_scale_label,      1, 2, 1, 2); // Middle of table
+    gtk_table_attach_defaults (GTK_TABLE (settings_table), settings_scale_spinbutton, 2, 3, 1, 2); // Right side of table
 
     gtk_widget_show (settings_table);
     gtk_widget_show (settings_tilesize_label);
 //    gtk_widget_show (settings_scaler_combo);
+    gtk_widget_show (settings_scale_label);
+    gtk_widget_show (settings_scale_spinbutton);
+
+
+    // Connect the changed signal to update the scaler mode
+    g_signal_connect (settings_scale_spinbutton,
+                      "value-changed",
+                      G_CALLBACK (on_settings_scale_spinbutton_changed),
+                      NULL);
+
+    // Then connect a second signal to trigger a preview update
+    g_signal_connect_swapped (settings_scale_spinbutton,
+                              "value-changed",
+                              G_CALLBACK(preview_scaled_size_allocate_event),
+                              (gpointer)scaled_preview_window);
+
+
 
 /*
     // Connect the changed signal to update the scaler mode
@@ -197,7 +230,7 @@ printf("Opening Dialog\n");
 */
 
 // TODO: TEMP-TEST set scaler manually
-scale_factor_set(2);
+  // scale_factor_set(2);
 
   gtk_widget_show (dialog);
 
@@ -235,7 +268,7 @@ printf("preview_scaled_size_allocate_event\n");
 tilemap_dialog_processing_run(p_drawable, (GimpPreview *)1); // <-- bad bad bad
 
 
-
+//TODO: DELETE ME?
     // Redraw the scaled preview if it's available
     if ( (scaled_output->p_scaledbuf != NULL) &&
          (scaled_output->valid_image == TRUE) ) {
@@ -257,6 +290,17 @@ tilemap_dialog_processing_run(p_drawable, (GimpPreview *)1); // <-- bad bad bad
     }
 
     return FALSE;
+}
+
+
+// Handler for "changed" signal of SCALER MODE combo box
+// When the user changes the scaler type -> Update the scaler mode
+//
+//   callback_data not used currently
+//
+static void on_settings_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpointer callback_data)
+{
+    scale_factor_set( gtk_spin_button_get_value_as_int(spinbutton) );
 }
 
 
