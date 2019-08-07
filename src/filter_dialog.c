@@ -206,7 +206,7 @@ static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint 
 {
     gint width_current, height_current;
 
-printf("dialog_scaled_preview_check_resize... ");
+// printf("dialog_scaled_preview_check_resize... ");
 
     // Get current size for scaled preview area
     gtk_widget_get_size_request (preview_scaled, &width_current, &height_current);
@@ -225,10 +225,7 @@ printf("dialog_scaled_preview_check_resize... ");
         gimp_preview_area_set_max_size(GIMP_PREVIEW_AREA (preview_scaled),
                                        width_new * scale_factor_new,
                                        height_new * scale_factor_new);
-        printf("YES\n");
     }
-    else
-        printf("NO\n");
 }
 
 
@@ -263,7 +260,7 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     scaled_output = scaled_info_get();
     scale_factor = scale_factor_get();  // TODO: Set scale factor here? Used to pull scale factor from mode
 
-    printf("Redraw scaled at %dx\n", scale_factor);
+    printf("Redraw queued at %dx\n", scale_factor);
 
     // TODO: Always use the entire image?
 
@@ -320,14 +317,15 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
                     bpp,
                     width, height);
     }
+    else
 
     // Filter is done, apply the update
     if (preview) {
 
 
         // Redraw the scaled preview if it's available (it ought to be at this point)
-//        if ( (scaled_output->p_scaledbuf != NULL) &&
-//             (scaled_output->valid_image == TRUE) ) {
+        if ( (scaled_output->p_scaledbuf != NULL) &&
+             (scaled_output->valid_image == TRUE) ) {
 
             // TODO: ? use gimp_preview_area_blend() to mix overlay and source image?
             // Calling widget should be: preview_scaled
@@ -338,7 +336,7 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
                                     gimp_drawable_type (drawable->drawable_id),             // GimpImageType (source image)
                                     (guchar *) scaled_output->p_scaledbuf,      // Source buffer
                                     scaled_output->width * scaled_output->bpp); // Row-stride
-//        }
+        }
     }
     else
     {

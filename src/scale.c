@@ -173,15 +173,8 @@ void scale_apply(uint8_t * p_srcbuf, uint8_t * p_destbuf, gint bpp, gint width, 
                           width, height,
                           scale_factor, bpp);
 
-        /*
-        scalers[scaler_mode].scaler_function( (uint32_t*) p_srcbuf,
-                                              (uint32_t*) p_destbuf,
-                                                    (int) width,
-                                                    (int) height);
-        scaled_output.bpp = BYTE_SIZE_RGBA_4BPP;
-        scaled_output.scaler_mode = scaler_mode;
         scaled_output.valid_image = TRUE;
-        */
+
     }
 }
 
