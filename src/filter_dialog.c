@@ -206,8 +206,6 @@ static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint 
 {
     gint width_current, height_current;
 
-// printf("dialog_scaled_preview_check_resize... ");
-
     // Get current size for scaled preview area
     gtk_widget_get_size_request (preview_scaled, &width_current, &height_current);
 
@@ -215,6 +213,9 @@ static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint 
     if ( (width_current  != (width_new  * scale_factor_new)) ||
          (height_current != (height_new * scale_factor_new)) )
     {
+        // TODO: This queues a second redraw event... it seems to work fine. Does it need to be fixed?
+        printf("Check size... Resize applied\n");
+
         // Resize scaled preview area
         gtk_widget_set_size_request (preview_scaled, width_new * scale_factor_new, height_new * scale_factor_new);
 
