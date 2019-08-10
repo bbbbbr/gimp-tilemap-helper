@@ -114,8 +114,8 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
     // Resize to show more of scaled preview by default (this sets MIN size)
     gtk_widget_set_size_request (dialog,
-                               500,
-                               400);
+                               650,
+                               600);
 
 
     gtk_dialog_set_alternative_button_order (GTK_DIALOG (dialog),
@@ -172,7 +172,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     // TODO: Consider changing from a table to a grid (tables are deprecated)
     setting_table = gtk_table_new (5, 5, FALSE);
     gtk_box_pack_start (GTK_BOX (main_vbox), setting_table, FALSE, FALSE, 0);
-    gtk_table_set_row_spacings(GTK_TABLE(setting_table), 4);
+    gtk_table_set_row_spacings(GTK_TABLE(setting_table), 2);
     gtk_table_set_col_spacings(GTK_TABLE(setting_table), 20);
     //gtk_table_set_homogeneous(GTK_TABLE (setting_table), TRUE);
     gtk_table_set_homogeneous(GTK_TABLE (setting_table), FALSE);
