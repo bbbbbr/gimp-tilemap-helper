@@ -29,13 +29,40 @@ extern const char PLUG_IN_BINARY[];
 
 static void dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
 static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
-// static void on_settings_scaler_combo_changed (GtkComboBox *, gpointer);
-static void on_settings_scale_spinbutton_changed(GtkSpinButton *, gpointer);
+// static void on_setting_scaler_combo_changed (GtkComboBox *, gpointer);
+static void on_setting_scale_spinbutton_changed(GtkSpinButton *, gpointer);
 gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
 
 
 // Widget for displaying the upscaled image preview
 static GtkWidget * preview_scaled;
+
+/*
+Preview
+x Zoom [1]^
+x [x] Overlay
+
+Processing:
+[x] Deduplicate Tiles
+    [ ] Check Rotation
+    [ ] Check Mirroring
+
+Tiles:
+Width[ 8 ]
+Height[ 8 ]
+Size from Image Grid [ ]
+
+Offset:
+X[ 0 ]
+Y[ 0 ]
+
+Info:
+Tile W x H
+Image W x H
+Tile Map W x H
+Total Colors N / Max colors per tile N
+Color Mode: Indexed / Etc
+*/
 
 
 /*******************************************************/
@@ -49,10 +76,26 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
     GtkWidget * scaled_preview_window;
 
-    GtkWidget * settings_table;
-    GtkWidget * settings_scale_spinbutton;
-    GtkWidget * settings_scale_label;
-    GtkWidget * settings_tilesize_label;
+    GtkWidget * setting_table;
+
+    GtkWidget * setting_preview_label;
+        GtkWidget * setting_scale_label;
+        GtkWidget * setting_scale_spinbutton;
+
+        GtkWidget * setting_overlay_checkbutton;
+
+
+    GtkWidget * setting_processing_label;
+        GtkWidget * setting_tilesize_label;
+        GtkWidget * setting_tilesize_width_spinbutton;
+        GtkWidget * setting_tilesize_height_spinbutton;
+
+        GtkWidget * setting_checkmirror_checkbutton;
+        GtkWidget * setting_checkrotation_checkbutton;
+
+    // Info
+    GtkWidget * info_display;
+
 
     gboolean   run;
     gint       idx;
@@ -127,45 +170,104 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
     // Create 2 x 3 table for Settings, non-homogonous sizing, attach to main vbox
     // TODO: Consider changing from a table to a grid (tables are deprecated)
-    settings_table = gtk_table_new (2, 3, FALSE);
-    gtk_box_pack_start (GTK_BOX (main_vbox), settings_table, FALSE, FALSE, 0);
-    gtk_table_set_homogeneous(GTK_TABLE (settings_table), TRUE);
+    setting_table = gtk_table_new (5, 5, FALSE);
+    gtk_box_pack_start (GTK_BOX (main_vbox), setting_table, FALSE, FALSE, 0);
+    gtk_table_set_row_spacings(GTK_TABLE(setting_table), 4);
+    gtk_table_set_col_spacings(GTK_TABLE(setting_table), 20);
+    //gtk_table_set_homogeneous(GTK_TABLE (setting_table), TRUE);
+    gtk_table_set_homogeneous(GTK_TABLE (setting_table), FALSE);
 
-    // Create label and right-align it
-    settings_tilesize_label = gtk_label_new ("Tile size (w x h):  " );
-    gtk_misc_set_alignment(GTK_MISC(settings_tilesize_label), 1.0f, 0.5f);
+
+    // == Preview Settings ==
+    setting_preview_label = gtk_label_new (NULL);
+    gtk_label_set_markup(GTK_LABEL(setting_preview_label), "<b>Preview</b>");
+    gtk_misc_set_alignment(GTK_MISC(setting_preview_label), 0.0f, 0.5f); // Left-align
+
+        // Checkbox for the image overlay
+        setting_overlay_checkbutton = gtk_check_button_new_with_label("Overlay");
+        gtk_misc_set_alignment(GTK_MISC(setting_overlay_checkbutton), 1.0f, 0.5f); // Right-align
+
+        // Spin button for the zoom scale factor
+        setting_scale_label = gtk_label_new ("Zoom:" );
+        gtk_misc_set_alignment(GTK_MISC(setting_scale_label), 0.0f, 0.5f); // Left-align
+        setting_scale_spinbutton = gtk_spin_button_new_with_range(1,10,1); // Min/Max/Step
 
 
-    // Add a spin button for the zoom scale factor
-    settings_scale_label = gtk_label_new ("Zoom:  " );
-    gtk_misc_set_alignment(GTK_MISC(settings_scale_label), 1.0f, 0.5f); // Right-align
-    settings_scale_spinbutton = gtk_spin_button_new_with_range(1,10,1); // Min/Max/Step
+    // == Processing Settings ==
+    setting_processing_label = gtk_label_new (NULL);
+    gtk_label_set_markup(GTK_LABEL(setting_processing_label), "<b>Processing</b>");
+    gtk_misc_set_alignment(GTK_MISC(setting_processing_label), 0.0f, 0.5f); // Left-align
+
+        // Create label and right-align it
+        setting_tilesize_label = gtk_label_new ("Tile size (w x h):  " );
+        gtk_misc_set_alignment(GTK_MISC(setting_tilesize_label), 0.0f, 0.5f); // Left-align
+        setting_tilesize_width_spinbutton  = gtk_spin_button_new_with_range(1,256,1); // Min/Max/Step
+        setting_tilesize_height_spinbutton = gtk_spin_button_new_with_range(1,256,1); // Min/Max/Step
+
+        // Checkboxes for mirroring and rotation on tile deduplication
+        setting_checkmirror_checkbutton = gtk_check_button_new_with_label("Check Mirroring");
+        setting_checkrotation_checkbutton = gtk_check_button_new_with_label("Check Rotation");
+
+    // Info readout/display area
+        // TODO: move to span entire bottom row, or use workarounds for variable width
+    info_display = gtk_label_new (NULL);
+    gtk_label_set_markup(GTK_LABEL(info_display),
+                         g_markup_printf_escaped("Tile: %d x %d\n"
+                                                 "Image: %d x %d\n"
+                                                 "Tiled Map: %d x %d\n"
+                                                 "Total Colors: %d\n"
+                                                 "Max colors per tile: %d (#%d)\n"
+                                                 "Color Mode: Indexed", 8,8, 640,480, 80, 60, 16, 8, 12));
+    gtk_label_set_max_width_chars(GTK_LABEL(info_display), 29);
+    gtk_label_set_ellipsize(GTK_LABEL(info_display),PANGO_ELLIPSIZE_END);
+    gtk_misc_set_alignment(GTK_MISC(info_display), 0.0f, 0.5f); // Left-align
+
 
 
     // Attach the UI WIdgets to the table and show them all
     // gtk_table_attach_defaults (*attach_to, *widget, left_attach, right_attach, top_attach, bottom_attach)
     //
-    gtk_table_attach_defaults (GTK_TABLE (settings_table), settings_tilesize_label,   1, 2, 0, 1); // Middle of table
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_preview_label,            0, 2, 0, 1);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_scale_label,          0, 2, 1, 2);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_scale_spinbutton,     0, 1, 2, 3);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_overlay_checkbutton,  0, 2, 3, 4);
 
-    gtk_table_attach_defaults (GTK_TABLE (settings_table), settings_scale_label,      1, 2, 1, 2); // Middle of table
-    gtk_table_attach_defaults (GTK_TABLE (settings_table), settings_scale_spinbutton, 2, 3, 1, 2); // Right side of table
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_processing_label,                2, 4, 0, 1);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_label,              2, 4, 1, 2);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_width_spinbutton,   2, 3, 2, 3);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_height_spinbutton,  3, 4, 2, 3);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 4, 3, 4);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 4, 4, 5);
 
-    gtk_widget_show (settings_table);
-    gtk_widget_show (settings_tilesize_label);
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), info_display,        4, 5, 1, 5); // Middle of table
 
-    gtk_widget_show (settings_scale_label);
-    gtk_widget_show (settings_scale_spinbutton);
 
+    gtk_widget_show (setting_table);
+
+    gtk_widget_show (setting_preview_label);
+        gtk_widget_show (setting_overlay_checkbutton);
+        gtk_widget_show (setting_scale_label);
+        gtk_widget_show (setting_scale_spinbutton);
+
+    gtk_widget_show (setting_processing_label);
+        gtk_widget_show (setting_tilesize_label);
+        gtk_widget_show (setting_tilesize_width_spinbutton);
+        gtk_widget_show (setting_tilesize_height_spinbutton);
+        gtk_widget_show (setting_overlay_checkbutton);
+        gtk_widget_show (setting_checkmirror_checkbutton);
+        gtk_widget_show (setting_checkrotation_checkbutton);
+
+    gtk_widget_show (info_display);
 
 
     // Connect the changed signal to update the scaler mode
-    g_signal_connect (settings_scale_spinbutton,
+    g_signal_connect (setting_scale_spinbutton,
                       "value-changed",
-                      G_CALLBACK (on_settings_scale_spinbutton_changed),
+                      G_CALLBACK (on_setting_scale_spinbutton_changed),
                       NULL);
 
     // Then connect a second signal to trigger a preview update
-    g_signal_connect_swapped (settings_scale_spinbutton,
+    g_signal_connect_swapped (setting_scale_spinbutton,
                               "value-changed",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 
@@ -189,7 +291,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 //
 //   callback_data not used currently
 //
-static void on_settings_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpointer callback_data)
+static void on_setting_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpointer callback_data)
 {
     scale_factor_set( gtk_spin_button_get_value_as_int(spinbutton) );
 }
