@@ -30,12 +30,20 @@ extern const char PLUG_IN_BINARY[];
 static void dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
 static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
 // static void on_setting_scaler_combo_changed (GtkComboBox *, gpointer);
+
 static void on_setting_scale_spinbutton_changed(GtkSpinButton *, gpointer);
+static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
+
+static void update_text_readout();
+
 gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
 
 
 // Widget for displaying the upscaled image preview
 static GtkWidget * preview_scaled;
+static GtkWidget * info_display;
+
+static gint tilesize_width, tilesize_height;
 
 /*
 Preview
@@ -94,7 +102,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         GtkWidget * setting_checkrotation_checkbutton;
 
     // Info
-    GtkWidget * info_display;
+//    GtkWidget * info_display;
 
 
     gboolean   run;
@@ -260,17 +268,31 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     gtk_widget_show (info_display);
 
 
-    // Connect the changed signal to update the scaler mode
-    g_signal_connect (setting_scale_spinbutton,
-                      "value-changed",
-                      G_CALLBACK (on_setting_scale_spinbutton_changed),
-                      NULL);
+    // ======== HANDLE UI CONTROL VALUE UPDATES ========
 
-    // Then connect a second signal to trigger a preview update
-    g_signal_connect_swapped (setting_scale_spinbutton,
-                              "value-changed",
+    // Connect the changed signal to update the scaler mode
+    g_signal_connect (setting_scale_spinbutton, "value-changed",
+                      G_CALLBACK (on_setting_scale_spinbutton_changed), NULL);
+
+    // Connect the changed signal to update the scaler mode
+    g_signal_connect (setting_tilesize_width_spinbutton, "value-changed",
+                      G_CALLBACK (on_setting_tilesize_spinbutton_changed), GINT_TO_POINTER(WIDGET_TILESIZE_WIDTH));
+    g_signal_connect (setting_tilesize_height_spinbutton, "value-changed",
+                      G_CALLBACK (on_setting_tilesize_spinbutton_changed), GINT_TO_POINTER(WIDGET_TILESIZE_HEIGHT));
+
+
+    // ======== HANDLE PROCESSING UPDATES VIA UI CONTROL VALUE CHANGES ========
+
+    // Connect a second signal to trigger a preview update
+    // TODO: just run display processing
+    g_signal_connect_swapped (setting_scale_spinbutton, "value-changed",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 
+    // TODO: wire this to a separate processing function to run both tile and display processing
+    g_signal_connect_swapped (setting_tilesize_width_spinbutton, "value-changed",
+                              G_CALLBACK(tilemap_dialog_processing_run), drawable);
+    g_signal_connect_swapped (setting_tilesize_height_spinbutton, "value-changed",
+                              G_CALLBACK(tilemap_dialog_processing_run), drawable);
 
 
     // ======== SHOW THE DIALOG AND RUN IT ========
@@ -296,6 +318,35 @@ static void on_setting_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpoin
     scale_factor_set( gtk_spin_button_get_value_as_int(spinbutton) );
 }
 
+
+// TODO: ?consolidate to a single spin button UI update handler?
+static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *spinbutton, gint callback_data)
+{
+    switch (callback_data) {
+        case WIDGET_TILESIZE_WIDTH:   tilesize_width = gtk_spin_button_get_value_as_int(spinbutton);
+             break;
+        case WIDGET_TILESIZE_HEIGHT: tilesize_height = gtk_spin_button_get_value_as_int(spinbutton);
+             break;
+    }
+}
+
+
+static void update_text_readout()
+{
+    gtk_label_set_markup(GTK_LABEL(info_display),
+                     g_markup_printf_escaped("Tile: %d x %d\n"
+                                             "Image: %d x %d\n"
+                                             "Tiled Map: %d x %d\n"
+                                             "Total Colors: %d\n"
+                                             "Max colors per tile: %d (#%d)\n"
+                                             "Color Mode: Indexed",
+
+                                             tilesize_width,tilesize_height,
+                                             640,480,
+                                             80, 60,
+                                             16, 8,
+                                             12));
+}
 
 
 // Checks to see whether the scaled preview area needs
@@ -440,6 +491,10 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
                                     (guchar *) scaled_output->p_scaledbuf,      // Source buffer
                                     scaled_output->width * scaled_output->bpp); // Row-stride
         }
+
+        // Update the info display area
+        update_text_readout();
+
     }
     else
     {
