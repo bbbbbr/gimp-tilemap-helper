@@ -1,5 +1,5 @@
 //
-// filter_tilemap.c
+// filter_tilemap_helper.c
 //
 
 // ========================
@@ -16,6 +16,7 @@
 #include <libgimp/gimp.h>
 #include <libgimp/gimpui.h>
 
+#include "filter_tilemap_helper.h"
 #include "filter_dialog.h"
 #include "scale.h"
 
@@ -40,22 +41,14 @@ GimpPlugInInfo PLUG_IN_INFO = {
     run
 };
 
-typedef struct
-{
-  gint  tile_width;
-  gint  tile_height;
-//  gbool overlay_enabled;
-//  gint  offset_x;
-//  gint  offset_y;
-
-} PluginTileMapVals;// PluginPixelArtScalerVals;
 
 
 // Default settings for semi-persistant plugin config
 static PluginTileMapVals plugin_config_vals = // PluginPixelArtScalerVals plugin_config_vals =
 {
-  8, // gint  tile_width;
-  8 // gint  tile_height;
+  8,  // gint  tile_width;
+  8,  // gint  tile_height;
+  1   // gint  scale_factor;
 //  ,1  // gbool overlay_enabled;
 };
 
@@ -74,7 +67,7 @@ static void query(void)
         { GIMP_PDB_DRAWABLE, "drawable",    "Input drawable" },
         { GIMP_PDB_INT32,    "tile_width",  "Tile Width(0-N)" },
         { GIMP_PDB_INT32,    "tile_height",  "Tile Width(0-N)" }
-//        { GIMP_PDB_INT32,    "overlay_enabled", "Show overlay on plugin preview" }
+//        { GIMP_PDB_BOOL,    "overlay_enabled", "Show overlay on plugin preview" }
     };
 
 
@@ -134,8 +127,9 @@ printf("Filter Main: run mode=%d\n",run_mode);
         case GIMP_RUN_INTERACTIVE:
             //  Try to retrieve plugin settings, then apply them
             gimp_get_data (PLUG_IN_PROCEDURE, &plugin_config_vals);
-            // TODO: Set settings/config
-            //      tilemap_setting_tilesize_set(plugin_config_vals.tile_width, plugin_config_vals.tile_height);
+
+            // Set settings/config
+            tilemap_dialog_settings_set(plugin_config_vals);
 
             //  Open the dialog
             // TODO: spawn dialog
@@ -144,20 +138,22 @@ printf("Filter Main: run mode=%d\n",run_mode);
             break;
 
         case GIMP_RUN_NONINTERACTIVE:
-            // Read in non-interactive mode plug settings, then apply them
-            plugin_config_vals.tile_width  = param[3].data.d_int32;
-            plugin_config_vals.tile_height = param[4].data.d_int32;
+            // Read in non-interactive mode plugin settings, then apply them
+            plugin_config_vals.tile_width   = param[3].data.d_int32;
+            plugin_config_vals.tile_height  = param[4].data.d_int32;
+            plugin_config_vals.scale_factor = param[5].data.d_int32;
+
             // TODO: Set settings/config
-            //      tilemap_setting_tilesize_set(plugin_config_vals.tile_width,
-            //                                   plugin_config_vals.tile_height);
+            tilemap_dialog_settings_set(plugin_config_vals);
             break;
 
         case GIMP_RUN_WITH_LAST_VALS:
             //  Try to retrieve plugin settings, then apply them
             gimp_get_data (PLUG_IN_PROCEDURE, &plugin_config_vals);
-            // TODO: Set settings/config
-            //      tilemap_setting_tilesize_set(plugin_config_vals.tile_width,
-            //                                   plugin_config_vals.tile_height);
+
+            // Set settings/config
+            tilemap_dialog_settings_set(plugin_config_vals);
+
             break;
 
         default:

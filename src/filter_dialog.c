@@ -18,6 +18,7 @@
 #include <libgimp/gimp.h>
 #include <libgimp/gimpui.h>
 
+#include "filter_tilemap_helper.h"
 #include "filter_dialog.h"
 #include "scale.h"
 
@@ -34,6 +35,9 @@ static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
 static void on_setting_scale_spinbutton_changed(GtkSpinButton *, gpointer);
 static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
 
+static void dialog_settings_apply_to_ui();
+static void dialog_settings_connect_signals(GimpDrawable *);
+
 static void update_text_readout();
 
 gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
@@ -43,7 +47,20 @@ gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
 static GtkWidget * preview_scaled;
 static GtkWidget * info_display;
 
-static gint tilesize_width, tilesize_height;
+static GtkWidget * setting_scale_label;
+static GtkWidget * setting_scale_spinbutton;
+
+static GtkWidget * setting_overlay_checkbutton;
+
+static GtkWidget * setting_tilesize_label;
+static GtkWidget * setting_tilesize_width_spinbutton;
+static GtkWidget * setting_tilesize_height_spinbutton;
+
+static GtkWidget * setting_checkmirror_checkbutton;
+static GtkWidget * setting_checkrotation_checkbutton;
+
+
+static PluginTileMapVals dialog_settings;
 
 /*
 Preview
@@ -85,21 +102,8 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     GtkWidget * scaled_preview_window;
 
     GtkWidget * setting_table;
-
     GtkWidget * setting_preview_label;
-        GtkWidget * setting_scale_label;
-        GtkWidget * setting_scale_spinbutton;
-
-        GtkWidget * setting_overlay_checkbutton;
-
-
     GtkWidget * setting_processing_label;
-        GtkWidget * setting_tilesize_label;
-        GtkWidget * setting_tilesize_width_spinbutton;
-        GtkWidget * setting_tilesize_height_spinbutton;
-
-        GtkWidget * setting_checkmirror_checkbutton;
-        GtkWidget * setting_checkrotation_checkbutton;
 
     // Info
 //    GtkWidget * info_display;
@@ -267,7 +271,45 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
     gtk_widget_show (info_display);
 
+    dialog_settings_apply_to_ui();
 
+    dialog_settings_connect_signals(drawable);
+
+
+    // ======== SHOW THE DIALOG AND RUN IT ========
+
+    gtk_widget_show (dialog);
+
+
+    run = (gimp_dialog_run (GIMP_DIALOG (dialog)) == GTK_RESPONSE_OK);
+
+    gtk_widget_destroy (dialog);
+
+    return run;
+}
+
+
+
+// Allows calling plugin to set dialog settings, including in headless mode
+//
+void tilemap_dialog_settings_set(PluginTileMapVals plugin_config_vals) {
+    memcpy (&dialog_settings, &plugin_config_vals, sizeof(PluginTileMapVals));
+}
+
+
+// Load dialog settings into UI (called on startup)
+//
+void dialog_settings_apply_to_ui() {
+
+    // ======== UPDATE WIDGETS TO CURRENT SETTINGS ========
+
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_scale_spinbutton),           dialog_settings.scale_factor);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_tilesize_width_spinbutton),  dialog_settings.tile_width);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_tilesize_height_spinbutton), dialog_settings.tile_height);
+}
+
+
+void dialog_settings_connect_signals(GimpDrawable *drawable) {
     // ======== HANDLE UI CONTROL VALUE UPDATES ========
 
     // Connect the changed signal to update the scaler mode
@@ -293,19 +335,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
     g_signal_connect_swapped (setting_tilesize_height_spinbutton, "value-changed",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
-
-
-    // ======== SHOW THE DIALOG AND RUN IT ========
-
-    gtk_widget_show (dialog);
-
-    run = (gimp_dialog_run (GIMP_DIALOG (dialog)) == GTK_RESPONSE_OK);
-
-    gtk_widget_destroy (dialog);
-
-    return run;
 }
-
 
 
 // Handler for "changed" signal of SCALER MODE combo box
@@ -315,7 +345,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 //
 static void on_setting_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpointer callback_data)
 {
-    scale_factor_set( gtk_spin_button_get_value_as_int(spinbutton) );
+    dialog_settings.scale_factor = gtk_spin_button_get_value_as_int(spinbutton);
 }
 
 
@@ -323,9 +353,9 @@ static void on_setting_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpoin
 static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *spinbutton, gint callback_data)
 {
     switch (callback_data) {
-        case WIDGET_TILESIZE_WIDTH:   tilesize_width = gtk_spin_button_get_value_as_int(spinbutton);
+        case WIDGET_TILESIZE_WIDTH:   dialog_settings.tile_width = gtk_spin_button_get_value_as_int(spinbutton);
              break;
-        case WIDGET_TILESIZE_HEIGHT: tilesize_height = gtk_spin_button_get_value_as_int(spinbutton);
+        case WIDGET_TILESIZE_HEIGHT: dialog_settings.tile_height = gtk_spin_button_get_value_as_int(spinbutton);
              break;
     }
 }
@@ -341,7 +371,7 @@ static void update_text_readout()
                                              "Max colors per tile: %d (#%d)\n"
                                              "Color Mode: Indexed",
 
-                                             tilesize_width,tilesize_height,
+                                             dialog_settings.tile_width,dialog_settings.tile_height,
                                              640,480,
                                              80, 60,
                                              16, 8,
@@ -404,17 +434,17 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     gint         bpp;
     gint         width, height;
     gint         x, y;
-    guint        scale_factor;
     uint8_t    * p_srcbuf = NULL;
     glong        srcbuf_size = 0;
     scaled_output_info * scaled_output;
 
 
+    // Apply dialog settings
+    scale_factor_set( dialog_settings.scale_factor );
+    printf("Redraw queued at %dx\n", dialog_settings.scale_factor);
 
+    // Check for previously rendered output
     scaled_output = scaled_info_get();
-    scale_factor = scale_factor_get();  // TODO: Set scale factor here? Used to pull scale factor from mode
-
-    printf("Redraw queued at %dx\n", scale_factor);
 
     // TODO: Always use the entire image?
 
@@ -427,7 +457,7 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
             return;
         }
 
-        dialog_scaled_preview_check_resize( preview_scaled, width, height, scale_factor);
+        dialog_scaled_preview_check_resize( preview_scaled, width, height, dialog_settings.scale_factor);
     } else if (! gimp_drawable_mask_intersect (drawable->drawable_id,
                                              &x, &y, &width, &height)) {
         // TODO: DO STUFF WHEN CALLED AFTER DIALOG CLOSED

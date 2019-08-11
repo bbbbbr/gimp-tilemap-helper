@@ -15,4 +15,6 @@
     gboolean tilemap_dialog_show(GimpDrawable *drawable);
     void     tilemap_dialog_processing_run (GimpDrawable *drawable, GimpPreview  *preview);
 
+    void tilemap_dialog_settings_set(PluginTileMapVals plugin_config_vals);
+
 #endif
