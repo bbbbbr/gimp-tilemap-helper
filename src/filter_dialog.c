@@ -710,7 +710,7 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
                                          p_map->map_width,      p_map->map_height,
                                          p_map->width_in_tiles, p_map->height_in_tiles,
                                          (p_map->width_in_tiles * p_map->height_in_tiles),
-                                         p_map->size,
+                                         p_tile_set->tile_count,
 //                                         16, 8,
                                          bpp));
 

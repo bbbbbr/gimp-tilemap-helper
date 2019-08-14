@@ -77,12 +77,10 @@ unsigned char process_tiles(image_data * p_src_img) {
 
     int         img_x, img_y;
 
-// TODO: ?? MAYBE FIXME - remove all uin32 alignment requirement????
     uint32_t  * tile_buf_intermediary; // Needs to be 32 bit aligned for hash function
     tile_data   tile;
     uint32_t    tile_size_bytes;
     uint32_t    tile_size_bytes_hash_padding; // Make sure hashed data is multiple of 32 bits
-    uint64_t    tile_hash;
     uint32_t    img_buf_offset;
     int32_t     tile_id;
     int32_t     map_slot;
@@ -100,7 +98,7 @@ unsigned char process_tiles(image_data * p_src_img) {
     // Allocate buffer for temporary working tile raw image
     // Use a uint32 for initial allocation, then hand it off to the uint8
     // TODO: fix this hack. rumor is that in PC world uint8 buffers always get 32 bit alligned?
-    tile_buf_intermediary = malloc(tile_size_bytes + tile_size_bytes_hash_padding);
+    tile_buf_intermediary = malloc((tile_size_bytes + tile_size_bytes_hash_padding) / sizeof(uint32_t));
     tile.p_img_raw        = (uint8_t *)tile_buf_intermediary;
 
     // Make sure padding bytes are zeroed
@@ -128,15 +126,18 @@ unsigned char process_tiles(image_data * p_src_img) {
                                           (uint32_t *)tile.p_img_raw);
 
                 tile_id = tile_find_matching(tile.hash, &tile_set);
-
+//printf("New Tile: (%3d, %3d) tile_id=%4d, tile_hash = %8lx \n", img_x, img_y, tile_id, tile.hash);
 
                 // Tile not found, create a new entry
                 if (tile_id == TILE_ID_NOT_FOUND) {
 
                     tile_id = tile_register_new(&tile, &tile_set);
 
+
                     if (tile_id <= TILE_ID_OUT_OF_SPACE) {
-                        free(tile.p_img_raw);
+                        // Free using the original pointer, not tile.p_img_raw
+                        free(tile_buf_intermediary);
+                        tile_buf_intermediary = NULL;
                         return (false); // Ran out of tile space, exit
                     }
                 }
@@ -157,8 +158,12 @@ unsigned char process_tiles(image_data * p_src_img) {
         return (false); // Failed to allocate buffer, exit
     }
 
-    if (tile.p_img_raw)
-        free(tile.p_img_raw);
+    // Free using the original pointer, not tile.p_img_raw
+    if (tile_buf_intermediary) {
+        free(tile_buf_intermediary);
+        tile_buf_intermediary = NULL;
+    }
+
 
     printf("Total Tiles=%d\n", tile_set.tile_count);
 }
