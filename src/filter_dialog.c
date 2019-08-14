@@ -21,7 +21,7 @@
 #include "filter_tilemap_helper.h"
 #include "filter_dialog.h"
 #include "scale.h"
-
+#include "lib_tilemap.h"
 
 
 extern const char PLUG_IN_PROCEDURE[];
@@ -42,11 +42,16 @@ static void update_text_readout();
 
 gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
 
+static void tilemap_calculate(uint8_t *, gint, gint, gint);
+static void tilemap_invalidate();
+static void tilemap_printinfo(gint, gint, gint);
 
 // Widget for displaying the upscaled image preview
 static GtkWidget * preview_scaled;
 static GtkWidget * info_display;
 
+
+// TODO: consider passing parent vbox into widget creation so these can be moved to local vars (?)
 static GtkWidget * setting_scale_label;
 static GtkWidget * setting_scale_spinbutton;
 
@@ -61,6 +66,13 @@ static GtkWidget * setting_checkrotation_checkbutton;
 
 
 static PluginTileMapVals dialog_settings;
+
+
+// TODO: move these out of global scope?
+static image_data      app_image;
+static color_data      app_colors;
+static gint            tilemap_needs_recalc;
+
 
 /*
 Preview
@@ -251,7 +263,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 4, 3, 4);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 4, 4, 5);
 
-    gtk_table_attach_defaults (GTK_TABLE (setting_table), info_display,        4, 5, 1, 5); // Middle of table
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), info_display,        4, 5, 0, 5); // Middle of table
 
 
     gtk_widget_show (setting_table);
@@ -278,8 +290,9 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
     // ======== SHOW THE DIALOG AND RUN IT ========
 
-    gtk_widget_show (dialog);
+    tilemap_invalidate();
 
+    gtk_widget_show (dialog);
 
     run = (gimp_dialog_run (GIMP_DIALOG (dialog)) == GTK_RESPONSE_OK);
 
@@ -290,11 +303,24 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
 
 
-// Allows calling plugin to set dialog settings, including in headless mode
+// For calling plugin to set dialog settings, including in headless mode
 //
-void tilemap_dialog_settings_set(PluginTileMapVals plugin_config_vals) {
-    memcpy (&dialog_settings, &plugin_config_vals, sizeof(PluginTileMapVals));
+void tilemap_dialog_settings_set(PluginTileMapVals * p_plugin_config_vals) {
+
+    // Copy plugin settings to dialog settings
+    memcpy (&dialog_settings, p_plugin_config_vals, sizeof(PluginTileMapVals));
 }
+
+
+
+// For calling plugin to retrieve dialog settings (to persist for next-run)
+//
+void tilemap_dialog_settings_get(PluginTileMapVals * p_plugin_config_vals) {
+
+    // Copy dialog settings to plugin settings
+    memcpy (p_plugin_config_vals, &dialog_settings, sizeof(PluginTileMapVals));
+}
+
 
 
 // Load dialog settings into UI (called on startup)
@@ -307,6 +333,7 @@ void dialog_settings_apply_to_ui() {
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_tilesize_width_spinbutton),  dialog_settings.tile_width);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_tilesize_height_spinbutton), dialog_settings.tile_height);
 }
+
 
 
 void dialog_settings_connect_signals(GimpDrawable *drawable) {
@@ -353,16 +380,19 @@ static void on_setting_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpoin
 static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *spinbutton, gint callback_data)
 {
     switch (callback_data) {
-        case WIDGET_TILESIZE_WIDTH:   dialog_settings.tile_width = gtk_spin_button_get_value_as_int(spinbutton);
-             break;
+        case WIDGET_TILESIZE_WIDTH:  dialog_settings.tile_width  = gtk_spin_button_get_value_as_int(spinbutton);
+            tilemap_invalidate();
+            break;
         case WIDGET_TILESIZE_HEIGHT: dialog_settings.tile_height = gtk_spin_button_get_value_as_int(spinbutton);
-             break;
+            tilemap_invalidate();
+            break;
     }
 }
 
 
 static void update_text_readout()
 {
+    /*
     gtk_label_set_markup(GTK_LABEL(info_display),
                      g_markup_printf_escaped("Tile: %d x %d\n"
                                              "Image: %d x %d\n"
@@ -376,6 +406,7 @@ static void update_text_readout()
                                              80, 60,
                                              16, 8,
                                              12));
+*/
 }
 
 
@@ -425,8 +456,8 @@ static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint 
 // Called from:
 // * Signals...
 //   -> preview_scaled -> size_allocate
-//   -> spin button -> value-changed
-// * The end of filter_pixel_art_scalers.c (if user pressed "OK" to apply)
+//   -> spin buttons -> value-changed
+// * The end of this file.c (if user pressed "OK" to apply)
 //
 void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview)
 {
@@ -435,9 +466,12 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     gint         width, height;
     gint         x, y;
     uint8_t    * p_srcbuf = NULL;
+    uint8_t    * p_tilebuf = NULL; // TODO: prob needs to be pointer pointer, or method to tilebuf_get()
     glong        srcbuf_size = 0;
     scaled_output_info * scaled_output;
 
+
+printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
 
     // Apply dialog settings
     scale_factor_set( dialog_settings.scale_factor );
@@ -471,7 +505,9 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     // Allocate output buffer for upscaled image
     scaled_output_check_reallocate(bpp, width, height);
 
-    if (scaled_output_check_reapply_scale()) {
+
+    // TODO: switch this to an invalidate model like tilemap_needs_recalc? - then above could be merged in and nested
+    if ((scaled_output_check_reapply_scale()) || (tilemap_needs_recalc)) {
 
         // ====== GET THE SOURCE IMAGE ======
         // Allocate a working buffer to copy the source image into
@@ -492,14 +528,25 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
                                  (guchar *) p_srcbuf,
                                  x, y, width, height);
 
+        // ====== CALCULATE TILE MAP & TILES ======
+
+printf("tilemap_dialog_processing_run 2 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
+        if (tilemap_needs_recalc) {
+            tilemap_calculate(p_srcbuf,
+                              bpp,
+                              width, height);
+        }
+
 
         // ====== APPLY THE SCALER ======
 
-        // TODO: remove comment ---Expects 4BPP RGBA in p_srcbuf, outputs same to p_scaledbuf
-        scale_apply(p_srcbuf,
-                    scaled_output->p_scaledbuf,
-                    bpp,
-                    width, height);
+        // TODO: remove comment FIX INDEXED HANDLING FIRST ---Expects 4BPP RGBA in p_srcbuf, outputs same to p_scaledbuf
+        if (scaled_output_check_reapply_scale()) {
+            scale_apply(p_srcbuf,
+                        scaled_output->p_scaledbuf,
+                        bpp,
+                        width, height);
+        }
     }
     else
 
@@ -543,6 +590,138 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 }
 
 
+
+
+static void tilemap_invalidate() {
+    tilemap_needs_recalc = TRUE;
+}
+
+
+
+static void tilemap_printinfo(gint bpp, gint width, gint height) {
+
+    tile_map_data * p_map;
+    tile_set_data * p_tile_set;
+
+    // TODO: check cached tile size a better way than this:
+    p_map      = tilemap_get_map();
+
+    printf("tilemap_needs_recalc = %d"
+    "\n------\n"
+    "tilemap calc: \n"
+    "app_image.bytes_per_pixel != bpp (%d , %d) \n"
+    "app_image.width      != width (%d , %d) \n"
+    "app_image.height     != height (%d , %d) \n"
+    "app_image.size       != width * height * bpp (%d , %d) \n"
+    "p_map->tile_width    != dialog_settings.tile_width (%d , %d) \n"
+    "p_map->tile_height   != dialog_settings.tile_height (%d , %d)\n",
+    tilemap_needs_recalc,
+    app_image.bytes_per_pixel , bpp,
+    app_image.width      , width,
+    app_image.height     , height,
+    app_image.size       , (width * height * bpp),
+    p_map->tile_width    , dialog_settings.tile_width,
+    p_map->tile_height   , dialog_settings.tile_height);
+
+}
+
+
+// TODO: variable tile size (push down via app settings?)
+//  gint image_id, gint drawable_id, gint image_mode)
+void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
+
+    gint status;
+
+    tile_map_data * p_map;
+    tile_set_data * p_tile_set;
+    image_data      tile_set_deduped_image;
+
+
+    status = TRUE; // Default to success
+
+    tilemap_printinfo(bpp, width, height);
+
+/*
+// TODO: FIXME Update getting triggered incorrectly by changes in scale
+    // TODO: move into function
+    // TODO: or tile size, mirror or rotate changed
+    // Did any map related settings change? Then queue an update
+    if ((app_image.bytes_per_pixel != bpp)             ||
+        (app_image.width      != width)                ||
+        (app_image.height     != height)               ||
+        (app_image.size       != width * height * bpp) ||
+        (p_map->tile_width    != dialog_settings.tile_width) ||
+        (p_map->tile_height   != dialog_settings.tile_height))
+    {
+        tilemap_needs_recalc = TRUE;
+        printf("Tilemap Recalc check = True\n");
+    }
+*/
+    // Get the Bytes Per Pixel of the incoming app image
+    app_image.bytes_per_pixel = bpp;
+
+    // Determine the array size for the app's image then allocate it
+    app_image.width      = width;
+    app_image.height     = height;
+    app_image.size       = width * height * bpp;
+    app_image.p_img_data = p_srcbuf;
+
+
+    if (tilemap_needs_recalc) {
+        status = tilemap_export_process(&app_image,
+                                        dialog_settings.tile_width,
+                                        dialog_settings.tile_height);
+
+        // TODO: warn/notify on failure (invalid tile size, etc)
+
+        if (status) {
+
+            printf("Tilemap Recalc SUCCESS...\n");
+
+            // Retrieve the deduplicated map and tile set
+            p_map      = tilemap_get_map();
+            p_tile_set = tilemap_get_tile_set();
+            // status     = tilemap_get_image_of_deduped_tile_set(&tile_set_deduped_image);
+
+            // Set tile map parameters, then convert the image to a map
+            /*
+            p_map->width_in_tiles;
+            p_map->height_in_tiles;
+            p_tile_set->tile_count;
+
+            p_map->tile_id_list -> uint8_t * p_map_data
+            p_map->size
+
+
+
+            */
+
+            gtk_label_set_markup(GTK_LABEL(info_display),
+                 g_markup_printf_escaped("Tiles: %d x %d\n"
+                                         "Image: %d x %d\n"
+                                         "Tiled Map: %d x %d\n"
+                                         "Map # Tiles: %d\n"
+                                         "Unique # Tiles: %d\n"
+//                                         "Total Colors: %d\n"
+//                                         "Max colors per tile: %d (#%d)\n"
+                                         "Color Mode: %d",
+
+                                         p_map->tile_width,     p_map->tile_height,
+                                         p_map->map_width,      p_map->map_height,
+                                         p_map->width_in_tiles, p_map->height_in_tiles,
+                                         (p_map->width_in_tiles * p_map->height_in_tiles),
+                                         p_map->size,
+//                                         16, 8,
+                                         bpp));
+
+            tilemap_needs_recalc = FALSE;
+            printf("tilemap:done --> tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+        }
+    }
+}
+
+// TODO
+// gint tilemap_check_needs_recalcualte()
 
 
 // resize_image_and_apply_changes

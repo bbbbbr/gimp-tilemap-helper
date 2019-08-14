@@ -22,6 +22,30 @@ static const char FALSE = 0;
 // static const char BYTE_SIZE_RGBA_4BPP = 4; // RGBA 4BPP
 
 
+// TODO: should this always operate in RGBA so that overlay is easier to do?
+// convert indexed/grayscale -> RGBA
+// Have to pass in cmap
+
+
+
+
+/*
+void scaler_nearest_1x_3or4_bpp(uint8_t * sp, uint8_t * dp,
+                       int Xres, int Yres,
+                       int scale_factor,
+                       int bpp) {
+
+}
+
+
+void_scaler_nearest(uint8_t * sp, uint8_t * dp,
+                       int Xres, int Yres,
+                       int scale_factor,
+                       int bpp) {
+
+scaler_nearest_1x_3or4_bpp(sp, dp, Xres, Yres, scale_factor, bpp);
+*/
+
 // Upscale by a factor of N from source (sp) to dest (dp)
 void scaler_nearest_nx(uint8_t * sp, uint8_t * dp,
                        int Xres, int Yres,
@@ -65,12 +89,17 @@ printf("SCALING NOW: w=%d,h=%d,bpp=%d,s=%d\n",Xres, Yres, bpp, scale_factor);
 
                 }
 
+
                 // Move to next byte in pixel
                 dp++;
                 sp++;
 
             }
+
             // Advance dest pointer to next upscaled pixel destination
+            // (1x copy of pixel -> n+ upscaled copy/ies -> next pixel)
+            // (it won't be at next pixel since dst_pixel is the pointer
+            //  used to do the writes at the upscaled locations above)
             dp += ((scale_factor -1)* bpp);
 
 

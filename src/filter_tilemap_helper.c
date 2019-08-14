@@ -19,7 +19,7 @@
 #include "filter_tilemap_helper.h"
 #include "filter_dialog.h"
 #include "scale.h"
-
+#include "lib_tilemap.h"
 
 
 const char PLUG_IN_PROCEDURE[] = "filter-tilemap-proc";
@@ -125,14 +125,14 @@ printf("Filter Main: run mode=%d\n",run_mode);
 
     switch (run_mode) {
         case GIMP_RUN_INTERACTIVE:
+
             //  Try to retrieve plugin settings, then apply them
             gimp_get_data (PLUG_IN_PROCEDURE, &plugin_config_vals);
 
-            // Set settings/config
-            tilemap_dialog_settings_set(plugin_config_vals);
+            // Set settings/config in dialog
+            tilemap_dialog_settings_set(&plugin_config_vals);
 
             //  Open the dialog
-            // TODO: spawn dialog
                 if (! tilemap_dialog_show (drawable))
                     return;
             break;
@@ -143,16 +143,16 @@ printf("Filter Main: run mode=%d\n",run_mode);
             plugin_config_vals.tile_height  = param[4].data.d_int32;
             plugin_config_vals.scale_factor = param[5].data.d_int32;
 
-            // TODO: Set settings/config
-            tilemap_dialog_settings_set(plugin_config_vals);
+            // Set settings/config in dialog
+            tilemap_dialog_settings_set(&plugin_config_vals);
             break;
 
         case GIMP_RUN_WITH_LAST_VALS:
             //  Try to retrieve plugin settings, then apply them
             gimp_get_data (PLUG_IN_PROCEDURE, &plugin_config_vals);
 
-            // Set settings/config
-            tilemap_dialog_settings_set(plugin_config_vals);
+            // Set settings/config in dialog
+            tilemap_dialog_settings_set(&plugin_config_vals);
 
             break;
 
@@ -179,7 +179,10 @@ printf("Filter Main: run mode=%d\n",run_mode);
 
         // Retrieve and then save plugin config settings
         if (run_mode == GIMP_RUN_INTERACTIVE) {
-            // TODO: Get settings/config
+            // Get settings/config from dialog
+            // Set settings/config in dialog
+            tilemap_dialog_settings_get(&plugin_config_vals);
+
             // tilemap_setting_tilesize_get(&(plugin_config_vals.tile_width),
             //                              &(plugin_config_vals.tile_height));
             gimp_set_data (PLUG_IN_PROCEDURE,
@@ -201,6 +204,8 @@ printf("Filter Main: run mode=%d\n",run_mode);
     return_values[0].data.d_status = status;
 
     gimp_drawable_detach (drawable);
+
+    tilemap_free_resources();
 }
 
 
