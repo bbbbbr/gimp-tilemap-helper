@@ -13,6 +13,10 @@
     #include <libgimp/gimp.h>
     #include <libgimp/gimpui.h>
 
+    #define BPP_INDEXED   1
+    #define BPP_INDEXEDA  2
+    #define BPP_RGB       3
+    #define BPP_RGBA      4
 
     #define BYTE_SIZE_RGBA_4BPP 4
     #define BYTE_SIZE_RGB_3BPP  3
@@ -43,7 +47,7 @@
 
     void scale_init(void);
     void scale_release_resources(void);
-    void scale_apply(uint8_t *, uint8_t *, gint, gint, gint);
+    void scale_apply(uint8_t *, uint8_t *, gint, gint, gint, uint8_t *, int );
 
     scaled_output_info * scaled_info_get(void);
     gint scaled_output_check_reapply_scale();

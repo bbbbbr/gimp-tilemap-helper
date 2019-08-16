@@ -63,7 +63,7 @@ static void query(void)
     static const GimpParamDef args[] =
     {
         { GIMP_PDB_INT32,    "run-mode",    "The run mode { RUN-INTERACTIVE (0), RUN-NONINTERACTIVE (1) }" },
-        { GIMP_PDB_IMAGE,    "image",       "Input image (unused)" },
+        { GIMP_PDB_IMAGE,    "image",       "Input image" },
         { GIMP_PDB_DRAWABLE, "drawable",    "Input drawable" },
         { GIMP_PDB_INT32,    "tile_width",  "Tile Width(0-N)" },
         { GIMP_PDB_INT32,    "tile_height",  "Tile Width(0-N)" }
@@ -79,7 +79,7 @@ static void query(void)
                             "2019",
                             "T_ilemap Helper ...",
 //                            "RGB*",
-                            "RGB*, INDEXED*", // TODO: indexed support
+                            "RGB*, INDEXED*", // TODO: greyscale* support
                             GIMP_PLUGIN,
                             G_N_ELEMENTS (args),
                             0,
@@ -105,10 +105,13 @@ static void run(const gchar      * name,
     GimpRunMode        run_mode;
     GimpDrawable       *drawable;
     GimpPDBStatusType  status = GIMP_PDB_SUCCESS;
+    gint32 image_id, drawable_id;
 
     run_mode      = param[0].data.d_int32;
 
     //  Get the specified drawable
+    image_id    = param[1].data.d_int32;
+    drawable_id = param[2].data.d_int32;
     drawable = gimp_drawable_get (param[2].data.d_drawable);
 
     *nreturn_vals = 1;
@@ -122,6 +125,8 @@ static void run(const gchar      * name,
 printf("Filter Main: run mode=%d\n",run_mode);
 
     scale_init();
+    tilemap_dialog_imageid_set(image_id);
+
 
     switch (run_mode) {
         case GIMP_RUN_INTERACTIVE:

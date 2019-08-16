@@ -73,6 +73,7 @@ static image_data      app_image;
 static color_data      app_colors;
 static gint            tilemap_needs_recalc;
 
+static gint32          image_id;
 
 /*
 Preview
@@ -323,6 +324,19 @@ void tilemap_dialog_settings_get(PluginTileMapVals * p_plugin_config_vals) {
 
 
 
+// For calling plugin to set dialog settings, including in headless mode
+//
+void tilemap_dialog_imageid_set(gint32 new_image_id) {
+
+    // Set local copy of source image id
+    image_id = new_image_id;
+}
+
+
+
+
+
+
 // Load dialog settings into UI (called on startup)
 //
 void dialog_settings_apply_to_ui() {
@@ -461,14 +475,18 @@ static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint 
 //
 void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview)
 {
+    GimpImageType drawable_type;
     GimpPixelRgn src_rgn;
-    gint         bpp;
+    gint         src_bpp, dest_bpp;
     gint         width, height;
     gint         x, y;
+
     uint8_t    * p_srcbuf = NULL;
-    uint8_t    * p_tilebuf = NULL; // TODO: prob needs to be pointer pointer, or method to tilebuf_get()
     glong        srcbuf_size = 0;
     scaled_output_info * scaled_output;
+
+    guchar     * p_colormap_buf = NULL;
+    gint         colormap_numcolors = 0;
 
 
 printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
@@ -500,10 +518,19 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
 
 
     // Get bit depth and alpha mask status
-    bpp = drawable->bpp;
+    src_bpp = drawable->bpp;
+
+    // If image is INDEXED or INDEXED ALPHA
+    // Then promote dest image: 1 bpp -> RGB 3 bpp, 2 bpp (alpha) -> RGBA 4bpp
+    if (src_bpp <= 2)
+        dest_bpp = (3 + (src_bpp - 1));
+    else
+        dest_bpp = src_bpp;
+
 
     // Allocate output buffer for upscaled image
-    scaled_output_check_reallocate(bpp, width, height);
+    // NOTE: This is feeding in the dest/scaled RGB/ALPHA 3/4 BPP that was promoted from INDEXED/ALPHA 1/2 BPP
+    scaled_output_check_reallocate(dest_bpp, width, height);
 
 
     // TODO: switch this to an invalidate model like tilemap_needs_recalc? - then above could be merged in and nested
@@ -511,7 +538,7 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
 
         // ====== GET THE SOURCE IMAGE ======
         // Allocate a working buffer to copy the source image into
-        srcbuf_size = width * height * bpp;
+        srcbuf_size = width * height * src_bpp;
         p_srcbuf = (uint8_t *) g_new (guint8, srcbuf_size);
 
 
@@ -528,24 +555,38 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
                                  (guchar *) p_srcbuf,
                                  x, y, width, height);
 
+
+        // TODO: handle grayscale?
+        // gimp_drawable_is_gray()
+        // gimp_drawable_is_rgb()
+        // Load color map if needed
+        if (gimp_drawable_is_indexed(drawable->drawable_id)) {
+            // Load the color map and copy it to a working buffer
+            p_colormap_buf = gimp_image_get_colormap(image_id, &colormap_numcolors);
+        }
+        else
+            colormap_numcolors = 0;
+
+
         // ====== CALCULATE TILE MAP & TILES ======
 
 printf("tilemap_dialog_processing_run 2 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
         if (tilemap_needs_recalc) {
             tilemap_calculate(p_srcbuf,
-                              bpp,
+                              src_bpp,
                               width, height);
         }
 
 
         // ====== APPLY THE SCALER ======
-
-        // TODO: remove comment FIX INDEXED HANDLING FIRST ---Expects 4BPP RGBA in p_srcbuf, outputs same to p_scaledbuf
+        // NOTE: Promotes INDEXED/ALPHA 1/2 BPP to RGB/ALPHA 3/4 BPP
+        //       Expects p_destbuf to be allocated with 3/4 BPP RGB/A number of bytes, not 1/2 if INDEXED
         if (scaled_output_check_reapply_scale()) {
             scale_apply(p_srcbuf,
                         scaled_output->p_scaledbuf,
-                        bpp,
-                        width, height);
+                        src_bpp,
+                        width, height,
+                        p_colormap_buf, colormap_numcolors);
         }
     }
     else
@@ -558,13 +599,19 @@ printf("tilemap_dialog_processing_run 2 --> tilemap_needs_recalc = %d\n", tilema
         if ( (scaled_output->p_scaledbuf != NULL) &&
              (scaled_output->valid_image == TRUE) ) {
 
-            // TODO: ? use gimp_preview_area_blend() to mix overlay and source image?
-            // Calling widget should be: preview_scaled
+
+            // Select drawable render type based on BPP of upscaled image
+            if      (dest_bpp == BPP_RGB)  drawable_type = GIMP_RGB_IMAGE;
+            else if (dest_bpp == BPP_RGBA) drawable_type = GIMP_RGBA_IMAGE;
+            else     drawable_type = GIMP_RGB_IMAGE; // fallback to RGB // TODO: should handle this better...
+
+            // TODO: optional use gimp_preview_area_blend() to mix overlay and source image?
+            // TODO: optional: // gimp_preview_area_set_colormap ()
             gimp_preview_area_draw (GIMP_PREVIEW_AREA (preview_scaled),
                                     0, 0,                  // x,y
                                     scaled_output->width,  // width, height
                                     scaled_output->height,
-                                    gimp_drawable_type (drawable->drawable_id),             // GimpImageType (source image)
+                                    drawable_type,                              // GimpImageType (scaled image) // gimp_drawable_type (drawable->drawable_id),
                                     (guchar *) scaled_output->p_scaledbuf,      // Source buffer
                                     scaled_output->width * scaled_output->bpp); // Row-stride
         }

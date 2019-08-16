@@ -161,23 +161,40 @@ void scaled_output_init(void)
 // Calls selected scaler function
 // Updates valid_image to assist with caching
 //
-void scale_apply(uint8_t * p_srcbuf, uint8_t * p_destbuf, gint bpp, gint width, gint height) {
+void scale_apply(uint8_t * p_srcbuf, uint8_t * p_destbuf,
+                 gint bpp,
+                 gint width, gint height,
+                 uint8_t * p_cmap_buf, int cmap_num_colors) {
 
     if ((p_srcbuf == NULL) || (p_destbuf == NULL))
         return;
 
+
     if (scale_factor) {
 
-        // Upscale by a factor of N from source (sp) to dest (dp)
-        scaler_nearest_nx(p_srcbuf, p_destbuf,
-                          width, height,
-                          scale_factor, bpp);
+        switch(bpp) {
+            case BPP_RGB:
+            case BPP_RGBA:
+                // Upscale by a factor of N from source (sp) to dest (dp)
+                scaler_nearest_bpp_rgb(p_srcbuf, p_destbuf,
+                                       width, height,
+                                       scale_factor, bpp);
+                break;
+
+            case BPP_INDEXED:
+            case BPP_INDEXEDA:
+                // Upscale by a factor of N from source (sp) to dest (dp)
+                scaler_nearest_bpp_indexed(p_srcbuf, p_destbuf,
+                                           width, height,
+                                           scale_factor, bpp,
+                                           p_cmap_buf, cmap_num_colors);
+                                break;
+        }
 
         scaled_output.valid_image = TRUE;
 
     }
 }
-
 
 
 
