@@ -594,12 +594,14 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
                         p_colormap_buf, colormap_numcolors);
 
             // For now, every time we change the tile size, we have to re-scale the image
-            tilemap_overlay_apply(scaled_output->p_scaledbuf,
-                                  dest_bpp,
-                                  scaled_output->width,
-                                  scaled_output->height,
-                                  dialog_settings.tile_width * dialog_settings.scale_factor,
-                                  dialog_settings.tile_height * dialog_settings.scale_factor);
+            tilemap_overlay_setparams(scaled_output->p_scaledbuf,
+                                      dest_bpp,
+                                      scaled_output->width,
+                                      scaled_output->height,
+                                      dialog_settings.tile_width * dialog_settings.scale_factor,
+                                      dialog_settings.tile_height * dialog_settings.scale_factor);
+
+            tilemap_overlay_apply();
 
         }
     }
