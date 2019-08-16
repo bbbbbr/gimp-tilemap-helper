@@ -48,7 +48,7 @@ static PluginTileMapVals plugin_config_vals = // PluginPixelArtScalerVals plugin
 {
   8,  // gint  tile_width;
   8,  // gint  tile_height;
-  1   // gint  scale_factor;
+  2   // gint  scale_factor;
 //  ,1  // gbool overlay_enabled;
 };
 
