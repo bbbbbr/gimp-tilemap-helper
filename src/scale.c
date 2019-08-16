@@ -169,6 +169,7 @@ void scale_apply(uint8_t * p_srcbuf, uint8_t * p_destbuf,
     if ((p_srcbuf == NULL) || (p_destbuf == NULL))
         return;
 
+printf("Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor, bpp, scaled_output.valid_image);
 
     if (scale_factor) {
 

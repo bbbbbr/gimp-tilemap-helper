@@ -22,6 +22,7 @@
 #include "filter_dialog.h"
 #include "scale.h"
 #include "lib_tilemap.h"
+#include "tilemap_overlay.h"
 
 
 extern const char PLUG_IN_PROCEDURE[];
@@ -570,7 +571,8 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
 
         // ====== CALCULATE TILE MAP & TILES ======
 
-printf("tilemap_dialog_processing_run 2 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
+        printf("tilemap_dialog_processing_run 2 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
+
         if (tilemap_needs_recalc) {
             tilemap_calculate(p_srcbuf,
                               src_bpp,
@@ -581,15 +583,27 @@ printf("tilemap_dialog_processing_run 2 --> tilemap_needs_recalc = %d\n", tilema
         // ====== APPLY THE SCALER ======
         // NOTE: Promotes INDEXED/ALPHA 1/2 BPP to RGB/ALPHA 3/4 BPP
         //       Expects p_destbuf to be allocated with 3/4 BPP RGB/A number of bytes, not 1/2 if INDEXED
-        if (scaled_output_check_reapply_scale()) {
+        //
+        // TODO: FIXME For now, every time the tile size is changed, re-scale the image
+//        if (scaled_output_check_reapply_scale()) {
+        {
             scale_apply(p_srcbuf,
                         scaled_output->p_scaledbuf,
                         src_bpp,
                         width, height,
                         p_colormap_buf, colormap_numcolors);
+
+            // For now, every time we change the tile size, we have to re-scale the image
+            tilemap_overlay_apply(scaled_output->p_scaledbuf,
+                                  dest_bpp,
+                                  scaled_output->width,
+                                  scaled_output->height,
+                                  dialog_settings.tile_width * dialog_settings.scale_factor,
+                                  dialog_settings.tile_height * dialog_settings.scale_factor);
+
         }
     }
-    else
+//    else
 
     // Filter is done, apply the update
     if (preview) {
@@ -652,7 +666,7 @@ static void tilemap_printinfo(gint bpp, gint width, gint height) {
 
     // TODO: check cached tile size a better way than this:
     p_map      = tilemap_get_map();
-
+/*
     printf("tilemap_needs_recalc = %d"
     "\n------\n"
     "tilemap calc: \n"
@@ -669,7 +683,7 @@ static void tilemap_printinfo(gint bpp, gint width, gint height) {
     app_image.size       , (width * height * bpp),
     p_map->tile_width    , dialog_settings.tile_width,
     p_map->tile_height   , dialog_settings.tile_height);
-
+*/
 }
 
 
@@ -714,7 +728,9 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
     app_image.p_img_data = p_srcbuf;
 
 
+    // TODO: FIXME: invalidate model is failing to work if tilemap fails due to excessive tile count/etc -> it's causing multiple pointless recalculations in a row, bad for large images
     if (tilemap_needs_recalc) {
+        printf("Tilemap: Starting Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
         status = tilemap_export_process(&app_image,
                                         dialog_settings.tile_width,
                                         dialog_settings.tile_height);
@@ -764,7 +780,11 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
             tilemap_needs_recalc = FALSE;
             printf("tilemap:done --> tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
         }
+        else
+            printf("Tilemap: Recalc FAILED: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
     }
+    else
+                printf("Tilemap: NO Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
 }
 
 // TODO
