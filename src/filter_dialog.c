@@ -47,6 +47,8 @@ static void tilemap_calculate(uint8_t *, gint, gint, gint);
 static void tilemap_invalidate();
 static void tilemap_printinfo(gint, gint, gint);
 
+static void tilemap_render_overlay();
+
 // Widget for displaying the upscaled image preview
 static GtkWidget * preview_scaled;
 static GtkWidget * info_display;
@@ -601,7 +603,7 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
                                       dialog_settings.tile_width * dialog_settings.scale_factor,
                                       dialog_settings.tile_height * dialog_settings.scale_factor);
 
-            tilemap_overlay_apply();
+            tilemap_render_overlay();
 
         }
     }
@@ -687,6 +689,8 @@ static void tilemap_printinfo(gint bpp, gint width, gint height) {
     p_map->tile_height   , dialog_settings.tile_height);
 */
 }
+
+
 
 
 // TODO: variable tile size (push down via app settings?)
@@ -788,6 +792,24 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
     else
                 printf("Tilemap: NO Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
 }
+
+
+
+static void tilemap_render_overlay() {
+
+    tile_map_data * p_map;
+    tile_set_data * p_tile_set;
+
+    p_map      = tilemap_get_map();
+    p_tile_set = tilemap_get_tile_set();
+
+    if (p_tile_set->tile_count > 0)
+        tilemap_overlay_apply(p_map->size, p_map->tile_id_list);
+    else
+        printf("Overlay: Render tilenums -> NO TILES FOUND!\n");
+}
+
+
 
 // TODO
 // gint tilemap_check_needs_recalcualte()

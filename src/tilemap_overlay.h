@@ -13,7 +13,7 @@ void tilemap_overlay_setparams(uint8_t * p_overlaybuf_new,
                                int width_new, int height_new,
                                int tile_width_new, int tile_height_new);
 
-    void tilemap_overlay_apply();
+void tilemap_overlay_apply(uint32_t map_size, uint8_t * map_tilelist);
 
 
     // Overlay 3 x 5 font in pixel offset locations
