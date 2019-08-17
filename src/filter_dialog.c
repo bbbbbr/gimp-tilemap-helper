@@ -240,12 +240,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         // TODO: move to span entire bottom row, or use workarounds for variable width
     info_display = gtk_label_new (NULL);
     gtk_label_set_markup(GTK_LABEL(info_display),
-                         g_markup_printf_escaped("Tile: %d x %d\n"
-                                                 "Image: %d x %d\n"
-                                                 "Tiled Map: %d x %d\n"
-                                                 "Total Colors: %d\n"
-                                                 "Max colors per tile: %d (#%d)\n"
-                                                 "Color Mode: Indexed", 8,8, 640,480, 80, 60, 16, 8, 12));
+                         g_markup_printf_escaped("Tile Info:"));
     gtk_label_set_max_width_chars(GTK_LABEL(info_display), 29);
     gtk_label_set_ellipsize(GTK_LABEL(info_display),PANGO_ELLIPSIZE_END);
     gtk_misc_set_alignment(GTK_MISC(info_display), 0.0f, 0.5f); // Left-align
