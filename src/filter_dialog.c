@@ -50,6 +50,7 @@ static void tilemap_invalidate();
 static void tilemap_printinfo(gint, gint, gint);
 
 static void tilemap_render_overlay();
+static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc);
 
 // Widget for displaying the upscaled image preview
 static GtkWidget * preview_scaled;
