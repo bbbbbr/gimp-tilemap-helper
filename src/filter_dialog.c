@@ -447,25 +447,6 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
 
                 tile_num = p_map->tile_id_list[tile_idx];
 
-/*
-                gtk_label_set_markup(GTK_LABEL(info_display),
-                            g_markup_printf_escaped("x = %d, y = %d\n"
-                                                    "wx = %d, wy = %d\n"
-                                                    "ww = %d, wh = %d\n"
-                                                    "imgx = %d, imgy = %d\n"
-                                                    "tile_w = %d, tile_h = %d\n"
-                                                    "tile_x = %d, tile_y = %d\n"
-                                                    "tile_index = %d, tile_num = %d\n"
-                                                    , x, y
-                                                    , widget_alloc.x, widget_alloc.y
-                                                    , widget_alloc.width, widget_alloc.height
-                                                    , img_x, img_y
-                                                    , p_map->tile_width, p_map->tile_height
-                                                    , tile_x, tile_y
-                                                    , tile_idx, tile_num
-                                                    ) );
-*/
-
                 gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
                             g_markup_printf_escaped("  x,y: (%4d ,%-4d)"
                                                     "        tile x,y: (%4d , %-4d)"
@@ -492,8 +473,8 @@ static void on_scaled_preview_mouse_moved(GtkWidget * widget, gpointer callback_
     GtkAllocation allocation;
     gint x,y;
 
-    // gtk_widget_get_pointer() is deprecated, eventually use...
-    // gdk_window_get_device_position (window, mouse, &x, &y, NULL);
+    // Note: gtk_widget_get_pointer() is deprecated, eventually use...
+    //   -> gdk_window_get_device_position (window, mouse, &x, &y, NULL);
     gtk_widget_get_pointer(widget, &x, &y);
     gtk_widget_get_allocation (widget, &allocation);
 
