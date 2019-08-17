@@ -410,83 +410,13 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
 
 
 
-static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc) {
-
-    //
-    #define PREVIEW_WIDGET_BORDER_X 1
-    #define PREVIEW_WIDGET_BORDER_Y 2
-
-
-    gint tile_num;
-    gint tile_x, tile_y, tile_idx;
-    gint img_x, img_y;
-
-    scaled_output_info * scaled_output;
-
-    tile_map_data * p_map;
-    tile_set_data * p_tile_set;
-
-    // Only display if there's valid data available (no recalc queued)
-    if (!((scaled_output_check_reapply_scale()) || (tilemap_needs_recalc))) {
-
-            p_map      = tilemap_get_map();
-            p_tile_set = tilemap_get_tile_set();
-
-            scaled_output = scaled_info_get();
-
-            // * Mouse location is in preview window coordinates
-            // * Scaled preview image may be smaller and centered in preview window
-            // So: position on image = mouse.x - (alloc.width - scaled_output->width) / 2,
-
-            img_x = x - ((widget_alloc.width - scaled_output->width) / 2) - PREVIEW_WIDGET_BORDER_X;
-            img_y = y - ((widget_alloc.height - scaled_output->height) / 2) - PREVIEW_WIDGET_BORDER_Y;
-
-        // Only process if it's within the bounds of the actual preview area
-        if ((img_x >= 0) && (img_x < scaled_output->width) &&
-            (img_y >= 0) && (img_y < scaled_output->height)) {
-
-            if (p_tile_set->tile_count > 0) {
-
-                // Get position on tile map and relevant info for tile
-                tile_x = (img_x / scaled_output->scale_factor) / p_map->tile_width;
-                tile_y = (img_y / scaled_output->scale_factor) / p_map->tile_height;
-
-                tile_idx = tile_x + (tile_y * p_map->width_in_tiles );
-
-                tile_num = p_map->tile_id_list[tile_idx];
-
-                gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
-                            g_markup_printf_escaped("  x,y: (%4d ,%-4d)"
-                                                    "        tile x,y: (%4d , %-4d)"
-                                                    "        tile index: %-8d"
-                                                    "        tile num: %-8d"
-                                                    , img_x / scaled_output->scale_factor
-                                                    , img_y / scaled_output->scale_factor
-                                                    , tile_x, tile_y
-                                                    , tile_idx, tile_num
-                                                    ) );
-            }
-            else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
-                     g_markup_printf_escaped("  ( No tiles available - check tile sizing )" ) );
-                // printf("Mouse Tile Display: NO TILES FOUND!\n");
-
-        } else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
-                     g_markup_printf_escaped(" " ) );
-            // else printf("Mouse Tile Display: Outside preview image bounds\n");
-    }
-    else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
-                     g_markup_printf_escaped("  ( No tiles available - check tile sizing )" ) );
-        // printf("Mouse Tile Display: Not yet ready for display!\n");
-
-}
-
-
-
 static void on_scaled_preview_mouse_exited(GtkWidget * widget, gpointer callback_data) {
     // Mouse Tile Display: Outside preview area, clear info
     gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
                      g_markup_printf_escaped(" " ) );
 }
+
+
 
 static void on_scaled_preview_mouse_moved(GtkWidget * widget, gpointer callback_data) {
 
@@ -502,6 +432,8 @@ static void on_scaled_preview_mouse_moved(GtkWidget * widget, gpointer callback_
     tilemap_preview_display_tilenum_on_mouseover(x,y, allocation);
 }
 
+
+
 // Handler for "changed" signal of SCALER MODE combo box
 // When the user changes the scaler type -> Update the scaler mode
 //
@@ -511,6 +443,7 @@ static void on_setting_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpoin
 {
     dialog_settings.scale_factor = gtk_spin_button_get_value_as_int(spinbutton);
 }
+
 
 
 // TODO: ?consolidate to a single spin button UI update handler?
@@ -525,6 +458,7 @@ static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *spinbutton, gi
             break;
     }
 }
+
 
 
 static void update_text_readout()
@@ -929,6 +863,77 @@ static void tilemap_render_overlay() {
         printf("Overlay: Render tilenums -> NO TILES FOUND!\n");
 }
 
+
+
+static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc) {
+
+    //
+    #define PREVIEW_WIDGET_BORDER_X 1
+    #define PREVIEW_WIDGET_BORDER_Y 2
+
+
+    gint tile_num;
+    gint tile_x, tile_y, tile_idx;
+    gint img_x, img_y;
+
+    scaled_output_info * scaled_output;
+
+    tile_map_data * p_map;
+    tile_set_data * p_tile_set;
+
+    // Only display if there's valid data available (no recalc queued)
+    if (!((scaled_output_check_reapply_scale()) || (tilemap_needs_recalc))) {
+
+            p_map      = tilemap_get_map();
+            p_tile_set = tilemap_get_tile_set();
+
+            scaled_output = scaled_info_get();
+
+            // * Mouse location is in preview window coordinates
+            // * Scaled preview image may be smaller and centered in preview window
+            // So: position on image = mouse.x - (alloc.width - scaled_output->width) / 2,
+
+            img_x = x - ((widget_alloc.width - scaled_output->width) / 2) - PREVIEW_WIDGET_BORDER_X;
+            img_y = y - ((widget_alloc.height - scaled_output->height) / 2) - PREVIEW_WIDGET_BORDER_Y;
+
+        // Only process if it's within the bounds of the actual preview area
+        if ((img_x >= 0) && (img_x < scaled_output->width) &&
+            (img_y >= 0) && (img_y < scaled_output->height)) {
+
+            if (p_tile_set->tile_count > 0) {
+
+                // Get position on tile map and relevant info for tile
+                tile_x = (img_x / scaled_output->scale_factor) / p_map->tile_width;
+                tile_y = (img_y / scaled_output->scale_factor) / p_map->tile_height;
+
+                tile_idx = tile_x + (tile_y * p_map->width_in_tiles );
+
+                tile_num = p_map->tile_id_list[tile_idx];
+
+                gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                            g_markup_printf_escaped("  x,y: (%4d ,%-4d)"
+                                                    "        tile x,y: (%4d , %-4d)"
+                                                    "        tile index: %-8d"
+                                                    "        tile num: %-8d"
+                                                    , img_x / scaled_output->scale_factor
+                                                    , img_y / scaled_output->scale_factor
+                                                    , tile_x, tile_y
+                                                    , tile_idx, tile_num
+                                                    ) );
+            }
+            else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped("  ( No tiles available - check tile sizing )" ) );
+                // printf("Mouse Tile Display: NO TILES FOUND!\n");
+
+        } else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped(" " ) );
+            // else printf("Mouse Tile Display: Outside preview image bounds\n");
+    }
+    else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped("  ( No tiles available - check tile sizing )" ) );
+        // printf("Mouse Tile Display: Not yet ready for display!\n");
+
+}
 
 
 // TODO
