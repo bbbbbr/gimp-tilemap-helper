@@ -33,6 +33,7 @@ static void dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
 static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
 // static void on_setting_scaler_combo_changed (GtkComboBox *, gpointer);
 
+static void on_scaled_preview_mouse_moved(GtkWidget * window, gpointer callback_data);
 static void on_setting_scale_spinbutton_changed(GtkSpinButton *, gpointer);
 static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
 
@@ -52,6 +53,7 @@ static void tilemap_render_overlay();
 // Widget for displaying the upscaled image preview
 static GtkWidget * preview_scaled;
 static GtkWidget * info_display;
+static GtkWidget * mouse_hover_display;
 
 
 // TODO: consider passing parent vbox into widget creation so these can be moved to local vars (?)
@@ -121,6 +123,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     GtkWidget * setting_preview_label;
     GtkWidget * setting_processing_label;
 
+    GtkWidget * mouse_hover_frame;
     // Info
 //    GtkWidget * info_display;
 
@@ -196,9 +199,9 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
     // ======== UI CONTROLS ========
 
-    // Create 2 x 3 table for Settings, non-homogonous sizing, attach to main vbox
+    // Create n x n table for Settings, non-homogonous sizing, attach to main vbox
     // TODO: Consider changing from a table to a grid (tables are deprecated)
-    setting_table = gtk_table_new (5, 5, FALSE);
+    setting_table = gtk_table_new (5, 6, FALSE);
     gtk_box_pack_start (GTK_BOX (main_vbox), setting_table, FALSE, FALSE, 0);
     gtk_table_set_row_spacings(GTK_TABLE(setting_table), 2);
     gtk_table_set_col_spacings(GTK_TABLE(setting_table), 20);
@@ -246,6 +249,13 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     gtk_misc_set_alignment(GTK_MISC(info_display), 0.0f, 0.5f); // Left-align
 
 
+    // Info readout/display area for mouse hover on the scaled preview area
+    mouse_hover_display = gtk_label_new (NULL);
+    gtk_misc_set_alignment(GTK_MISC(mouse_hover_display), 0.0f, 0.5f); // Left-align
+    // Put the label inside a frame
+    mouse_hover_frame = gtk_frame_new(NULL);
+    gtk_container_add (GTK_CONTAINER (mouse_hover_frame), mouse_hover_display);
+
 
     // Attach the UI WIdgets to the table and show them all
     // gtk_table_attach_defaults (*attach_to, *widget, left_attach, right_attach, top_attach, bottom_attach)
@@ -262,8 +272,8 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 4, 3, 4);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 4, 4, 5);
 
-    gtk_table_attach_defaults (GTK_TABLE (setting_table), info_display,        4, 5, 0, 5); // Middle of table
-
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), info_display,        4, 5, 0, 5);  // Middle of table
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), mouse_hover_frame, 0, 5, 5, 6); // Entire bottom row
 
     gtk_widget_show (setting_table);
 
@@ -281,6 +291,9 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         gtk_widget_show (setting_checkrotation_checkbutton);
 
     gtk_widget_show (info_display);
+
+    gtk_widget_show (mouse_hover_display);
+    gtk_widget_show (mouse_hover_frame);
 
     dialog_settings_apply_to_ui();
 
@@ -349,6 +362,17 @@ void dialog_settings_apply_to_ui() {
 
 
 void dialog_settings_connect_signals(GimpDrawable *drawable) {
+
+    // ======== SCALED PREVIEW MOUSEOVER INFO ========
+
+    // Add mouse movement event
+    gtk_widget_add_events(preview_scaled, GDK_POINTER_MOTION_MASK);
+
+    // Connect the mouse moved signal to a display function
+    g_signal_connect (preview_scaled, "motion-notify-event",
+                      G_CALLBACK (on_scaled_preview_mouse_moved), NULL);
+
+
     // ======== HANDLE UI CONTROL VALUE UPDATES ========
 
     // Connect the changed signal to update the scaler mode
@@ -376,6 +400,106 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 }
 
+
+
+static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc) {
+
+    //
+    #define PREVIEW_WIDGET_BORDER_X 1
+    #define PREVIEW_WIDGET_BORDER_Y 2
+
+
+    gint tile_num;
+    gint tile_x, tile_y, tile_idx;
+    gint img_x, img_y;
+
+    scaled_output_info * scaled_output;
+
+    tile_map_data * p_map;
+    tile_set_data * p_tile_set;
+
+    // Only display if there's valid data available (no recalc queued)
+    if (!((scaled_output_check_reapply_scale()) || (tilemap_needs_recalc))) {
+
+            p_map      = tilemap_get_map();
+            p_tile_set = tilemap_get_tile_set();
+
+            scaled_output = scaled_info_get();
+
+            // * Mouse location is in preview window coordinates
+            // * Scaled preview image may be smaller and centered in preview window
+            // So: position on image = mouse.x - (alloc.width - scaled_output->width) / 2,
+
+            img_x = x - ((widget_alloc.width - scaled_output->width) / 2) - PREVIEW_WIDGET_BORDER_X;
+            img_y = y - ((widget_alloc.height - scaled_output->height) / 2) - PREVIEW_WIDGET_BORDER_Y;
+
+        // Only process if it's within the bounds of the actual preview area
+        if ((img_x >= 0) && (img_x < scaled_output->width) &&
+            (img_y >= 0) && (img_y < scaled_output->height)) {
+
+            if (p_tile_set->tile_count > 0) {
+
+                // Get position on tile map and relevant info for tile
+                tile_x = (img_x / scaled_output->scale_factor) / p_map->tile_width;
+                tile_y = (img_y / scaled_output->scale_factor) / p_map->tile_height;
+
+                tile_idx = tile_x + (tile_y * p_map->width_in_tiles );
+
+                tile_num = p_map->tile_id_list[tile_idx];
+
+/*
+                gtk_label_set_markup(GTK_LABEL(info_display),
+                            g_markup_printf_escaped("x = %d, y = %d\n"
+                                                    "wx = %d, wy = %d\n"
+                                                    "ww = %d, wh = %d\n"
+                                                    "imgx = %d, imgy = %d\n"
+                                                    "tile_w = %d, tile_h = %d\n"
+                                                    "tile_x = %d, tile_y = %d\n"
+                                                    "tile_index = %d, tile_num = %d\n"
+                                                    , x, y
+                                                    , widget_alloc.x, widget_alloc.y
+                                                    , widget_alloc.width, widget_alloc.height
+                                                    , img_x, img_y
+                                                    , p_map->tile_width, p_map->tile_height
+                                                    , tile_x, tile_y
+                                                    , tile_idx, tile_num
+                                                    ) );
+*/
+
+                gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                            g_markup_printf_escaped("  x,y: (%4d ,%-4d)"
+                                                    "        tile x,y: (%4d , %-4d)"
+                                                    "        tile index: %-8d"
+                                                    "        tile num: %-8d"
+                                                    , img_x / scaled_output->scale_factor
+                                                    , img_y / scaled_output->scale_factor
+                                                    , tile_x, tile_y
+                                                    , tile_idx, tile_num
+                                                    ) );
+            }
+            else printf("Mouse Tile Display: NO TILES FOUND!\n");
+        }
+        // else printf("Mouse Tile Display: Outside preview image bounds\n");
+    }
+    else printf("Mouse Tile Display: Not yet ready for display!\n");
+
+}
+
+
+
+static void on_scaled_preview_mouse_moved(GtkWidget * widget, gpointer callback_data) {
+
+    GtkAllocation allocation;
+    gint x,y;
+
+    // gtk_widget_get_pointer() is deprecated, eventually use...
+    // gdk_window_get_device_position (window, mouse, &x, &y, NULL);
+    gtk_widget_get_pointer(widget, &x, &y);
+    gtk_widget_get_allocation (widget, &allocation);
+
+    // Display info about the tile the mouse is over
+    tilemap_preview_display_tilenum_on_mouseover(x,y, allocation);
+}
 
 // Handler for "changed" signal of SCALER MODE combo box
 // When the user changes the scaler type -> Update the scaler mode
