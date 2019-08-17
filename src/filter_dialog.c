@@ -33,6 +33,7 @@ static void dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
 static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
 // static void on_setting_scaler_combo_changed (GtkComboBox *, gpointer);
 
+static void on_scaled_preview_mouse_exited(GtkWidget * window, gpointer callback_data);
 static void on_scaled_preview_mouse_moved(GtkWidget * window, gpointer callback_data);
 static void on_setting_scale_spinbutton_changed(GtkSpinButton *, gpointer);
 static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
@@ -373,6 +374,13 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
                       G_CALLBACK (on_scaled_preview_mouse_moved), NULL);
 
 
+    // Add event for when the mouse leaves the window (clear info display)
+    gtk_widget_add_events(preview_scaled, GDK_LEAVE_NOTIFY_MASK);
+
+    // Connect the mouse moved signal to a display function
+    g_signal_connect (preview_scaled, "leave-notify-event",
+                      G_CALLBACK (on_scaled_preview_mouse_exited), NULL);
+
     // ======== HANDLE UI CONTROL VALUE UPDATES ========
 
     // Connect the changed signal to update the scaler mode
@@ -458,15 +466,27 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
                                                     , tile_idx, tile_num
                                                     ) );
             }
-            else printf("Mouse Tile Display: NO TILES FOUND!\n");
-        }
-        // else printf("Mouse Tile Display: Outside preview image bounds\n");
+            else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped("  ( No tiles available - check tile sizing )" ) );
+                // printf("Mouse Tile Display: NO TILES FOUND!\n");
+
+        } else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped(" " ) );
+            // else printf("Mouse Tile Display: Outside preview image bounds\n");
     }
-    else printf("Mouse Tile Display: Not yet ready for display!\n");
+    else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped("  ( No tiles available - check tile sizing )" ) );
+        // printf("Mouse Tile Display: Not yet ready for display!\n");
 
 }
 
 
+
+static void on_scaled_preview_mouse_exited(GtkWidget * widget, gpointer callback_data) {
+    // Mouse Tile Display: Outside preview area, clear info
+    gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped(" " ) );
+}
 
 static void on_scaled_preview_mouse_moved(GtkWidget * widget, gpointer callback_data) {
 
