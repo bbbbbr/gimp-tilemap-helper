@@ -20,7 +20,8 @@ static int height;
 static int tile_width;
 static int tile_height;
 
-
+static int grid_enabled;
+static int tilenums_enabled;
 
 
 void font_render_number(int x, int y, uint16_t num, uint8_t * p_buf );
@@ -31,6 +32,28 @@ void pixel_draw_color(int x, int y, uint8_t * p_buf, uint8_t r, uint8_t g, uint8
 void render_grid (uint8_t * p_buf);
 
 // TODO: ? better to create two buffers and overlay the text one using gimp_preview_area_mask() ?
+
+
+// Called from main dialog to toggle individual overlays on and off
+void tilemap_overlay_set_enables(int grid_enabled_new, int tilenums_enabled_new) {
+    grid_enabled = grid_enabled_new;
+    tilenums_enabled = tilenums_enabled_new;
+}
+
+// NOTE: expects scale_factor to be pre-multipled against width, height, tile_width, tile_height before being fed in
+void tilemap_overlay_setparams(uint8_t * p_overlaybuf_new,
+                               int bpp_new,
+                               int width_new, int height_new,
+                               int tile_width_new, int tile_height_new) {
+
+    p_overlaybuf = p_overlaybuf_new;
+    bpp = bpp_new;
+    width = width_new;
+    height = height_new;
+    tile_width = tile_width_new;
+    tile_height = tile_height_new;
+}
+
 
 
 // Render a font digit
@@ -134,21 +157,6 @@ void pixel_draw_color(int x, int y, uint8_t * p_buf, uint8_t r, uint8_t g, uint8
 }
 
 
-// NOTE: expects scale_factor to be pre-multipled against width, height, tile_width, tile_height before being fed in
-void tilemap_overlay_setparams(uint8_t * p_overlaybuf_new,
-                               int bpp_new,
-                               int width_new, int height_new,
-                               int tile_width_new, int tile_height_new) {
-
-    p_overlaybuf = p_overlaybuf_new;
-    bpp = bpp_new;
-    width = width_new;
-    height = height_new;
-    tile_width = tile_width_new;
-    tile_height = tile_height_new;
-}
-
-
 void render_grid (uint8_t * p_buf) {
 
     int x,y;
@@ -197,10 +205,12 @@ void tilemap_overlay_apply(uint32_t map_size, uint8_t * map_tilelist) {
         return;
 
     // Draw the tile grid
-    render_grid (p_overlaybuf);
+    if (grid_enabled)
+        render_grid (p_overlaybuf);
 
     // Draw the tile numbers
-    render_tilenums ( p_overlaybuf, map_size, map_tilelist);
+    if (tilenums_enabled)
+        render_tilenums ( p_overlaybuf, map_size, map_tilelist);
 }
 
 
