@@ -37,6 +37,7 @@ static void on_scaled_preview_mouse_exited(GtkWidget * window, gpointer callback
 static void on_scaled_preview_mouse_moved(GtkWidget * window, gpointer callback_data);
 static void on_setting_scale_spinbutton_changed(GtkSpinButton *, gpointer);
 static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
+static void on_setting_overlay_checkbutton_changed(GtkToggleButton *, gpointer);
 
 static void dialog_settings_apply_to_ui();
 static void dialog_settings_connect_signals(GimpDrawable *);
@@ -78,6 +79,7 @@ static PluginTileMapVals dialog_settings;
 // TODO: move these out of global scope?
 static image_data      app_image;
 static color_data      app_colors;
+
 static gint            tilemap_needs_recalc;
 
 static gint32          image_id;
@@ -359,6 +361,8 @@ void dialog_settings_apply_to_ui() {
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_scale_spinbutton),           dialog_settings.scale_factor);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_tilesize_width_spinbutton),  dialog_settings.tile_width);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_tilesize_height_spinbutton), dialog_settings.tile_height);
+
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_overlay_checkbutton),      dialog_settings.overlay_enabled);
 }
 
 
@@ -394,6 +398,9 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
     g_signal_connect (setting_tilesize_height_spinbutton, "value-changed",
                       G_CALLBACK (on_setting_tilesize_spinbutton_changed), GINT_TO_POINTER(WIDGET_TILESIZE_HEIGHT));
 
+    g_signal_connect(G_OBJECT(setting_overlay_checkbutton), "toggled",
+                      G_CALLBACK(on_setting_overlay_checkbutton_changed), NULL);
+
 
     // ======== HANDLE PROCESSING UPDATES VIA UI CONTROL VALUE CHANGES ========
 
@@ -406,6 +413,9 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
     g_signal_connect_swapped (setting_tilesize_width_spinbutton, "value-changed",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
     g_signal_connect_swapped (setting_tilesize_height_spinbutton, "value-changed",
+                              G_CALLBACK(tilemap_dialog_processing_run), drawable);
+
+    g_signal_connect_swapped (setting_overlay_checkbutton, "toggled",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 }
 
@@ -440,7 +450,7 @@ static void on_scaled_preview_mouse_moved(GtkWidget * widget, gpointer callback_
 //
 //   callback_data not used currently
 //
-static void on_setting_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpointer callback_data)
+static void on_setting_scale_spinbutton_changed(GtkSpinButton * spinbutton, gpointer callback_data)
 {
     dialog_settings.scale_factor = gtk_spin_button_get_value_as_int(spinbutton);
 }
@@ -448,7 +458,7 @@ static void on_setting_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpoin
 
 
 // TODO: ?consolidate to a single spin button UI update handler?
-static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *spinbutton, gint callback_data)
+static void on_setting_tilesize_spinbutton_changed(GtkSpinButton * spinbutton, gint callback_data)
 {
     switch (callback_data) {
         case WIDGET_TILESIZE_WIDTH:  dialog_settings.tile_width  = gtk_spin_button_get_value_as_int(spinbutton);
@@ -460,6 +470,12 @@ static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *spinbutton, gi
     }
 }
 
+
+static void on_setting_overlay_checkbutton_changed(GtkToggleButton * p_togglebutton, gpointer callback_data) {
+    dialog_settings.overlay_enabled = gtk_toggle_button_get_active(p_togglebutton);
+    // Request a redraw of the scaled preview + overlay
+    scaled_output_invalidate();
+}
 
 
 static void update_text_readout()
@@ -650,16 +666,17 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
                         width, height,
                         p_colormap_buf, colormap_numcolors);
 
-            // For now, every time we change the tile size, we have to re-scale the image
-            tilemap_overlay_setparams(scaled_output->p_scaledbuf,
-                                      dest_bpp,
-                                      scaled_output->width,
-                                      scaled_output->height,
-                                      dialog_settings.tile_width * dialog_settings.scale_factor,
-                                      dialog_settings.tile_height * dialog_settings.scale_factor);
+            if (dialog_settings.overlay_enabled) {
+                // For now, every time we change the tile size, we have to re-scale the image
+                tilemap_overlay_setparams(scaled_output->p_scaledbuf,
+                                          dest_bpp,
+                                          scaled_output->width,
+                                          scaled_output->height,
+                                          dialog_settings.tile_width * dialog_settings.scale_factor,
+                                          dialog_settings.tile_height * dialog_settings.scale_factor);
 
-            tilemap_render_overlay();
-
+                tilemap_render_overlay();
+            }
         }
     }
 //    else

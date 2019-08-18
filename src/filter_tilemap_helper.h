@@ -10,7 +10,7 @@
         gint  tile_width;
         gint  tile_height;
         gint  scale_factor;
-    //  gbool overlay_enabled;
+        gint overlay_enabled;
     //  gint  offset_x;
     //  gint  offset_y;
 

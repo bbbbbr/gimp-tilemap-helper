@@ -86,6 +86,17 @@ scaled_output_info * scaled_info_get(void) {
 }
 
 
+// scaled_output_invalidate
+//
+// Clears valid image flag
+//
+// Used to clear output caching and trigger a redraw
+//
+void scaled_output_invalidate() {
+    scaled_output.valid_image = FALSE;
+}
+
+
 // scaled_output_check_reapply_scalers
 //
 // Checks whether the scaler needs to be re-applied
