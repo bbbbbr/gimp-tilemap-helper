@@ -50,6 +50,7 @@
     void scale_apply(uint8_t *, uint8_t *, gint, gint, gint, uint8_t *, int );
 
     scaled_output_info * scaled_info_get(void);
+    void scaled_output_invalidate();
     gint scaled_output_check_reapply_scale();
     void scaled_output_check_reallocate(gint, gint, gint);
 

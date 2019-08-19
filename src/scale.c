@@ -86,6 +86,17 @@ scaled_output_info * scaled_info_get(void) {
 }
 
 
+// scaled_output_invalidate
+//
+// Clears valid image flag
+//
+// Used to clear output caching and trigger a redraw
+//
+void scaled_output_invalidate() {
+    scaled_output.valid_image = FALSE;
+}
+
+
 // scaled_output_check_reapply_scalers
 //
 // Checks whether the scaler needs to be re-applied
@@ -169,6 +180,7 @@ void scale_apply(uint8_t * p_srcbuf, uint8_t * p_destbuf,
     if ((p_srcbuf == NULL) || (p_destbuf == NULL))
         return;
 
+printf("Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor, bpp, scaled_output.valid_image);
 
     if (scale_factor) {
 

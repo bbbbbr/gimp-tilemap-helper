@@ -48,8 +48,9 @@ static PluginTileMapVals plugin_config_vals = // PluginPixelArtScalerVals plugin
 {
   8,  // gint  tile_width;
   8,  // gint  tile_height;
-  1   // gint  scale_factor;
-//  ,1  // gbool overlay_enabled;
+  2,  // gint  scale_factor;
+  1,  // gint overlay_grid_enabled;
+  1,  // gint overlay_tileids_enabled;
 };
 
 
@@ -122,7 +123,7 @@ static void run(const gchar      * name,
     // return_values[0].data.d_status = GIMP_PDB_SUCCESS;
     return_values[0].data.d_status = status;
 
-printf("Filter Main: run mode=%d\n",run_mode);
+printf("================================= Filter Main: run mode=%d    ================================= \n\n\n\n",run_mode);
 
     scale_init();
     tilemap_dialog_imageid_set(image_id);

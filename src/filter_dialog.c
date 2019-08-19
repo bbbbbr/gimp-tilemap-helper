@@ -22,6 +22,7 @@
 #include "filter_dialog.h"
 #include "scale.h"
 #include "lib_tilemap.h"
+#include "tilemap_overlay.h"
 
 
 extern const char PLUG_IN_PROCEDURE[];
@@ -32,8 +33,11 @@ static void dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
 static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
 // static void on_setting_scaler_combo_changed (GtkComboBox *, gpointer);
 
+static void on_scaled_preview_mouse_exited(GtkWidget * window, gpointer callback_data);
+static void on_scaled_preview_mouse_moved(GtkWidget * window, gpointer callback_data);
 static void on_setting_scale_spinbutton_changed(GtkSpinButton *, gpointer);
 static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
+static void on_setting_overlay_checkbutton_changed(GtkToggleButton *, gpointer);
 
 static void dialog_settings_apply_to_ui();
 static void dialog_settings_connect_signals(GimpDrawable *);
@@ -46,16 +50,21 @@ static void tilemap_calculate(uint8_t *, gint, gint, gint);
 static void tilemap_invalidate();
 static void tilemap_printinfo(gint, gint, gint);
 
+static void tilemap_render_overlay();
+static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc);
+
 // Widget for displaying the upscaled image preview
 static GtkWidget * preview_scaled;
 static GtkWidget * info_display;
+static GtkWidget * mouse_hover_display;
 
 
 // TODO: consider passing parent vbox into widget creation so these can be moved to local vars (?)
 static GtkWidget * setting_scale_label;
 static GtkWidget * setting_scale_spinbutton;
 
-static GtkWidget * setting_overlay_checkbutton;
+static GtkWidget * setting_overlay_grid_checkbutton;
+static GtkWidget * setting_overlay_tileids_checkbutton;
 
 static GtkWidget * setting_tilesize_label;
 static GtkWidget * setting_tilesize_width_spinbutton;
@@ -71,6 +80,7 @@ static PluginTileMapVals dialog_settings;
 // TODO: move these out of global scope?
 static image_data      app_image;
 static color_data      app_colors;
+
 static gint            tilemap_needs_recalc;
 
 static gint32          image_id;
@@ -118,6 +128,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     GtkWidget * setting_preview_label;
     GtkWidget * setting_processing_label;
 
+    GtkWidget * mouse_hover_frame;
     // Info
 //    GtkWidget * info_display;
 
@@ -193,9 +204,9 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
     // ======== UI CONTROLS ========
 
-    // Create 2 x 3 table for Settings, non-homogonous sizing, attach to main vbox
+    // Create n x n table for Settings, non-homogonous sizing, attach to main vbox
     // TODO: Consider changing from a table to a grid (tables are deprecated)
-    setting_table = gtk_table_new (5, 5, FALSE);
+    setting_table = gtk_table_new (5, 6, FALSE);
     gtk_box_pack_start (GTK_BOX (main_vbox), setting_table, FALSE, FALSE, 0);
     gtk_table_set_row_spacings(GTK_TABLE(setting_table), 2);
     gtk_table_set_col_spacings(GTK_TABLE(setting_table), 20);
@@ -208,9 +219,13 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     gtk_label_set_markup(GTK_LABEL(setting_preview_label), "<b>Preview</b>");
     gtk_misc_set_alignment(GTK_MISC(setting_preview_label), 0.0f, 0.5f); // Left-align
 
-        // Checkbox for the image overlay
-        setting_overlay_checkbutton = gtk_check_button_new_with_label("Overlay");
-        gtk_misc_set_alignment(GTK_MISC(setting_overlay_checkbutton), 1.0f, 0.5f); // Right-align
+        // Checkboxes for the image overlays
+        setting_overlay_grid_checkbutton = gtk_check_button_new_with_label("Grid");
+        // gtk_misc_set_alignment(GTK_MISC(setting_overlay_grid_checkbutton), 1.0f, 0.5f); // Right-align
+
+        setting_overlay_tileids_checkbutton = gtk_check_button_new_with_label("Tile IDs");
+        // gtk_misc_set_alignment(GTK_MISC(setting_overlay_tileids_checkbutton), 1.0f, 0.5f); // Right-align
+
 
         // Spin button for the zoom scale factor
         setting_scale_label = gtk_label_new ("Zoom:" );
@@ -237,16 +252,18 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         // TODO: move to span entire bottom row, or use workarounds for variable width
     info_display = gtk_label_new (NULL);
     gtk_label_set_markup(GTK_LABEL(info_display),
-                         g_markup_printf_escaped("Tile: %d x %d\n"
-                                                 "Image: %d x %d\n"
-                                                 "Tiled Map: %d x %d\n"
-                                                 "Total Colors: %d\n"
-                                                 "Max colors per tile: %d (#%d)\n"
-                                                 "Color Mode: Indexed", 8,8, 640,480, 80, 60, 16, 8, 12));
+                         g_markup_printf_escaped("Tile Info:"));
     gtk_label_set_max_width_chars(GTK_LABEL(info_display), 29);
     gtk_label_set_ellipsize(GTK_LABEL(info_display),PANGO_ELLIPSIZE_END);
     gtk_misc_set_alignment(GTK_MISC(info_display), 0.0f, 0.5f); // Left-align
 
+
+    // Info readout/display area for mouse hover on the scaled preview area
+    mouse_hover_display = gtk_label_new (NULL);
+    gtk_misc_set_alignment(GTK_MISC(mouse_hover_display), 0.0f, 0.5f); // Left-align
+    // Put the label inside a frame
+    mouse_hover_frame = gtk_frame_new(NULL);
+    gtk_container_add (GTK_CONTAINER (mouse_hover_frame), mouse_hover_display);
 
 
     // Attach the UI WIdgets to the table and show them all
@@ -255,7 +272,8 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_preview_label,            0, 2, 0, 1);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_scale_label,          0, 2, 1, 2);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_scale_spinbutton,     0, 1, 2, 3);
-        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_overlay_checkbutton,  0, 2, 3, 4);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_overlay_grid_checkbutton,     0, 2, 3, 4);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_overlay_tileids_checkbutton,  0, 2, 4, 5);
 
     gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_processing_label,                2, 4, 0, 1);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_label,              2, 4, 1, 2);
@@ -264,13 +282,14 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 4, 3, 4);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 4, 4, 5);
 
-    gtk_table_attach_defaults (GTK_TABLE (setting_table), info_display,        4, 5, 0, 5); // Middle of table
-
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), info_display,        4, 5, 0, 5);  // Middle of table
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), mouse_hover_frame, 0, 5, 5, 6); // Entire bottom row
 
     gtk_widget_show (setting_table);
 
     gtk_widget_show (setting_preview_label);
-        gtk_widget_show (setting_overlay_checkbutton);
+        gtk_widget_show (setting_overlay_grid_checkbutton);
+        gtk_widget_show (setting_overlay_tileids_checkbutton);
         gtk_widget_show (setting_scale_label);
         gtk_widget_show (setting_scale_spinbutton);
 
@@ -278,11 +297,13 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         gtk_widget_show (setting_tilesize_label);
         gtk_widget_show (setting_tilesize_width_spinbutton);
         gtk_widget_show (setting_tilesize_height_spinbutton);
-        gtk_widget_show (setting_overlay_checkbutton);
         gtk_widget_show (setting_checkmirror_checkbutton);
         gtk_widget_show (setting_checkrotation_checkbutton);
 
     gtk_widget_show (info_display);
+
+    gtk_widget_show (mouse_hover_display);
+    gtk_widget_show (mouse_hover_frame);
 
     dialog_settings_apply_to_ui();
 
@@ -341,16 +362,38 @@ void tilemap_dialog_imageid_set(gint32 new_image_id) {
 //
 void dialog_settings_apply_to_ui() {
 
+    //printf("==== Applying Dialog Settings to UI\n");
     // ======== UPDATE WIDGETS TO CURRENT SETTINGS ========
 
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_scale_spinbutton),           dialog_settings.scale_factor);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_tilesize_width_spinbutton),  dialog_settings.tile_width);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(setting_tilesize_height_spinbutton), dialog_settings.tile_height);
+
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_overlay_grid_checkbutton),    dialog_settings.overlay_grid_enabled);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_overlay_tileids_checkbutton), dialog_settings.overlay_tileids_enabled);
 }
 
 
 
 void dialog_settings_connect_signals(GimpDrawable *drawable) {
+
+    // ======== SCALED PREVIEW MOUSEOVER INFO ========
+
+    // Add mouse movement event
+    gtk_widget_add_events(preview_scaled, GDK_POINTER_MOTION_MASK);
+
+    // Connect the mouse moved signal to a display function
+    g_signal_connect (preview_scaled, "motion-notify-event",
+                      G_CALLBACK (on_scaled_preview_mouse_moved), NULL);
+
+
+    // Add event for when the mouse leaves the window (clear info display)
+    gtk_widget_add_events(preview_scaled, GDK_LEAVE_NOTIFY_MASK);
+
+    // Connect the mouse moved signal to a display function
+    g_signal_connect (preview_scaled, "leave-notify-event",
+                      G_CALLBACK (on_scaled_preview_mouse_exited), NULL);
+
     // ======== HANDLE UI CONTROL VALUE UPDATES ========
 
     // Connect the changed signal to update the scaler mode
@@ -362,6 +405,11 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
                       G_CALLBACK (on_setting_tilesize_spinbutton_changed), GINT_TO_POINTER(WIDGET_TILESIZE_WIDTH));
     g_signal_connect (setting_tilesize_height_spinbutton, "value-changed",
                       G_CALLBACK (on_setting_tilesize_spinbutton_changed), GINT_TO_POINTER(WIDGET_TILESIZE_HEIGHT));
+
+    g_signal_connect(G_OBJECT(setting_overlay_grid_checkbutton), "toggled",
+                      G_CALLBACK(on_setting_overlay_checkbutton_changed), NULL);
+    g_signal_connect(G_OBJECT(setting_overlay_tileids_checkbutton), "toggled",
+                      G_CALLBACK(on_setting_overlay_checkbutton_changed), NULL);
 
 
     // ======== HANDLE PROCESSING UPDATES VIA UI CONTROL VALUE CHANGES ========
@@ -376,7 +424,37 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
     g_signal_connect_swapped (setting_tilesize_height_spinbutton, "value-changed",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
+
+    g_signal_connect_swapped (setting_overlay_grid_checkbutton, "toggled",
+                              G_CALLBACK(tilemap_dialog_processing_run), drawable);
+    g_signal_connect_swapped (setting_overlay_tileids_checkbutton, "toggled",
+                              G_CALLBACK(tilemap_dialog_processing_run), drawable);
 }
+
+
+
+static void on_scaled_preview_mouse_exited(GtkWidget * widget, gpointer callback_data) {
+    // Mouse Tile Display: Outside preview area, clear info
+    gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped(" " ) );
+}
+
+
+
+static void on_scaled_preview_mouse_moved(GtkWidget * widget, gpointer callback_data) {
+
+    GtkAllocation allocation;
+    gint x,y;
+
+    // Note: gtk_widget_get_pointer() is deprecated, eventually use...
+    //   -> gdk_window_get_device_position (window, mouse, &x, &y, NULL);
+    gtk_widget_get_pointer(widget, &x, &y);
+    gtk_widget_get_allocation (widget, &allocation);
+
+    // Display info about the tile the mouse is over
+    tilemap_preview_display_tilenum_on_mouseover(x,y, allocation);
+}
+
 
 
 // Handler for "changed" signal of SCALER MODE combo box
@@ -384,15 +462,20 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
 //
 //   callback_data not used currently
 //
-static void on_setting_scale_spinbutton_changed(GtkSpinButton *spinbutton, gpointer callback_data)
+static void on_setting_scale_spinbutton_changed(GtkSpinButton * spinbutton, gpointer callback_data)
 {
+    //printf("        --> EVENT: on_setting_tilesize_spinbutton_changed\n");
+
     dialog_settings.scale_factor = gtk_spin_button_get_value_as_int(spinbutton);
 }
 
 
+
 // TODO: ?consolidate to a single spin button UI update handler?
-static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *spinbutton, gint callback_data)
+static void on_setting_tilesize_spinbutton_changed(GtkSpinButton * spinbutton, gint callback_data)
 {
+    //printf("        --> EVENT: on_setting_tilesize_spinbutton_changed\n");
+
     switch (callback_data) {
         case WIDGET_TILESIZE_WIDTH:  dialog_settings.tile_width  = gtk_spin_button_get_value_as_int(spinbutton);
             tilemap_invalidate();
@@ -401,6 +484,19 @@ static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *spinbutton, gi
             tilemap_invalidate();
             break;
     }
+}
+
+
+static void on_setting_overlay_checkbutton_changed(GtkToggleButton * p_togglebutton, gpointer callback_data) {
+    // Update settings for both checkboxes
+    dialog_settings.overlay_grid_enabled    = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(setting_overlay_grid_checkbutton));
+    dialog_settings.overlay_tileids_enabled = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(setting_overlay_tileids_checkbutton));
+
+//    printf("        --> EVENT: Setting Enables: %d, %d\n", dialog_settings.overlay_grid_enabled,
+//                                dialog_settings.overlay_tileids_enabled);
+
+    // Request a redraw of the scaled preview + overlay
+    scaled_output_invalidate();
 }
 
 
@@ -492,6 +588,8 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
 
     // Apply dialog settings
+    tilemap_overlay_set_enables(dialog_settings.overlay_grid_enabled,
+                                dialog_settings.overlay_tileids_enabled);
     scale_factor_set( dialog_settings.scale_factor );
     printf("Redraw queued at %dx\n", dialog_settings.scale_factor);
 
@@ -570,7 +668,8 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
 
         // ====== CALCULATE TILE MAP & TILES ======
 
-printf("tilemap_dialog_processing_run 2 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
+        printf("tilemap_dialog_processing_run 2 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
+
         if (tilemap_needs_recalc) {
             tilemap_calculate(p_srcbuf,
                               src_bpp,
@@ -581,15 +680,29 @@ printf("tilemap_dialog_processing_run 2 --> tilemap_needs_recalc = %d\n", tilema
         // ====== APPLY THE SCALER ======
         // NOTE: Promotes INDEXED/ALPHA 1/2 BPP to RGB/ALPHA 3/4 BPP
         //       Expects p_destbuf to be allocated with 3/4 BPP RGB/A number of bytes, not 1/2 if INDEXED
-        if (scaled_output_check_reapply_scale()) {
+        //
+        // TODO: FIXME For now, every time the tile size is changed, re-scale the image
+//        if (scaled_output_check_reapply_scale()) {
+        {
             scale_apply(p_srcbuf,
                         scaled_output->p_scaledbuf,
                         src_bpp,
                         width, height,
                         p_colormap_buf, colormap_numcolors);
+
+            // Note: Drawing of individual overlays controlled via tilemap_overlay_set_enables()
+            // For now, every time we change the tile size, we have to re-scale the image
+            tilemap_overlay_setparams(scaled_output->p_scaledbuf,
+                                      dest_bpp,
+                                      scaled_output->width,
+                                      scaled_output->height,
+                                      dialog_settings.tile_width * dialog_settings.scale_factor,
+                                      dialog_settings.tile_height * dialog_settings.scale_factor);
+
+            tilemap_render_overlay();
         }
     }
-    else
+//    else
 
     // Filter is done, apply the update
     if (preview) {
@@ -652,7 +765,7 @@ static void tilemap_printinfo(gint bpp, gint width, gint height) {
 
     // TODO: check cached tile size a better way than this:
     p_map      = tilemap_get_map();
-
+/*
     printf("tilemap_needs_recalc = %d"
     "\n------\n"
     "tilemap calc: \n"
@@ -669,8 +782,10 @@ static void tilemap_printinfo(gint bpp, gint width, gint height) {
     app_image.size       , (width * height * bpp),
     p_map->tile_width    , dialog_settings.tile_width,
     p_map->tile_height   , dialog_settings.tile_height);
-
+*/
 }
+
+
 
 
 // TODO: variable tile size (push down via app settings?)
@@ -714,7 +829,9 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
     app_image.p_img_data = p_srcbuf;
 
 
+    // TODO: FIXME: invalidate model is failing to work if tilemap fails due to excessive tile count/etc -> it's causing multiple pointless recalculations in a row, bad for large images
     if (tilemap_needs_recalc) {
+        printf("Tilemap: Starting Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
         status = tilemap_export_process(&app_image,
                                         dialog_settings.tile_width,
                                         dialog_settings.tile_height);
@@ -764,8 +881,101 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
             tilemap_needs_recalc = FALSE;
             printf("tilemap:done --> tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
         }
+        else
+            printf("Tilemap: Recalc FAILED: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
     }
+    else
+                printf("Tilemap: NO Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
 }
+
+
+
+static void tilemap_render_overlay() {
+
+    tile_map_data * p_map;
+    tile_set_data * p_tile_set;
+
+    p_map      = tilemap_get_map();
+    p_tile_set = tilemap_get_tile_set();
+
+    if (p_tile_set->tile_count > 0)
+        tilemap_overlay_apply(p_map->size, p_map->tile_id_list);
+    else
+        printf("Overlay: Render tilenums -> NO TILES FOUND!\n");
+}
+
+
+
+static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc) {
+
+    //
+    #define PREVIEW_WIDGET_BORDER_X 1
+    #define PREVIEW_WIDGET_BORDER_Y 2
+
+
+    gint tile_num;
+    gint tile_x, tile_y, tile_idx;
+    gint img_x, img_y;
+
+    scaled_output_info * scaled_output;
+
+    tile_map_data * p_map;
+    tile_set_data * p_tile_set;
+
+    // Only display if there's valid data available (no recalc queued)
+    if (!((scaled_output_check_reapply_scale()) || (tilemap_needs_recalc))) {
+
+            p_map      = tilemap_get_map();
+            p_tile_set = tilemap_get_tile_set();
+
+            scaled_output = scaled_info_get();
+
+            // * Mouse location is in preview window coordinates
+            // * Scaled preview image may be smaller and centered in preview window
+            // So: position on image = mouse.x - (alloc.width - scaled_output->width) / 2,
+
+            img_x = x - ((widget_alloc.width - scaled_output->width) / 2) - PREVIEW_WIDGET_BORDER_X;
+            img_y = y - ((widget_alloc.height - scaled_output->height) / 2) - PREVIEW_WIDGET_BORDER_Y;
+
+        // Only process if it's within the bounds of the actual preview area
+        if ((img_x >= 0) && (img_x < scaled_output->width) &&
+            (img_y >= 0) && (img_y < scaled_output->height)) {
+
+            if (p_tile_set->tile_count > 0) {
+
+                // Get position on tile map and relevant info for tile
+                tile_x = (img_x / scaled_output->scale_factor) / p_map->tile_width;
+                tile_y = (img_y / scaled_output->scale_factor) / p_map->tile_height;
+
+                tile_idx = tile_x + (tile_y * p_map->width_in_tiles );
+
+                tile_num = p_map->tile_id_list[tile_idx];
+
+                gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                            g_markup_printf_escaped("  Image x,y: (%4d ,%-4d)"
+                                                    "        Tile x,y: (%4d , %-4d)"
+                                                    "        Tile index: %-8d"
+                                                    "        Tile ID: %-8d"
+                                                    , img_x / scaled_output->scale_factor
+                                                    , img_y / scaled_output->scale_factor
+                                                    , tile_x, tile_y
+                                                    , tile_idx, tile_num
+                                                    ) );
+            }
+            else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped("  ( No tiles available - check tile sizing )" ) );
+                // printf("Mouse Tile Display: NO TILES FOUND!\n");
+
+        } else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped(" " ) );
+            // else printf("Mouse Tile Display: Outside preview image bounds\n");
+    }
+    else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
+                     g_markup_printf_escaped("  ( No tiles available - check tile sizing )" ) );
+        // printf("Mouse Tile Display: Not yet ready for display!\n");
+
+}
+
 
 // TODO
 // gint tilemap_check_needs_recalcualte()

@@ -146,7 +146,7 @@ void scaler_nearest_bpp_indexed(uint8_t * sp, uint8_t * dp,
                 // from color map into dest buffer
                 *dp++ = p_color_map[color_index    ]; // Red
                 *dp++ = p_color_map[color_index + 1]; // Green
-                *dp++ = p_color_map[color_index + 1]; // Blue
+                *dp++ = p_color_map[color_index + 2]; // Blue
 
                 // Copy Alpha byte if present in source
                 if (src_bpp == 2)
