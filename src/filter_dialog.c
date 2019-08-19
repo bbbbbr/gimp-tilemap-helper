@@ -120,13 +120,13 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 {
     GtkWidget * dialog;
     GtkWidget * main_vbox;
-    GtkWidget * preview_hbox;
 
     GtkWidget * scaled_preview_window;
 
     GtkWidget * setting_table;
     GtkWidget * setting_preview_label;
     GtkWidget * setting_processing_label;
+    GtkWidget * setting_tilesize_hbox;
 
     GtkWidget * mouse_hover_frame;
     // Info
@@ -168,7 +168,6 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     gtk_box_pack_start (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))),
                       main_vbox, TRUE, TRUE, 0);
     gtk_widget_show (main_vbox);
-
 
 
     // ======== IMAGE PREVIEW ========
@@ -241,15 +240,23 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         // Create label and right-align it
         setting_tilesize_label = gtk_label_new ("Tile size (w x h):  " );
         gtk_misc_set_alignment(GTK_MISC(setting_tilesize_label), 0.0f, 0.5f); // Left-align
+        // Tile width/height widgets
         setting_tilesize_width_spinbutton  = gtk_spin_button_new_with_range(1,256,1); // Min/Max/Step
         setting_tilesize_height_spinbutton = gtk_spin_button_new_with_range(1,256,1); // Min/Max/Step
+
+        // Horizontal box for tile width/height widgets
+        // (Forces them to a nicer looking, smaller size)
+        setting_tilesize_hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 3);
+        gtk_container_set_border_width (GTK_CONTAINER (setting_tilesize_hbox), 3);
+        gtk_box_pack_start (GTK_BOX (setting_tilesize_hbox), setting_tilesize_width_spinbutton, FALSE, FALSE, 0);
+        gtk_box_pack_start (GTK_BOX (setting_tilesize_hbox), setting_tilesize_height_spinbutton, FALSE, FALSE, 0);
+
 
         // Checkboxes for mirroring and rotation on tile deduplication
         setting_checkmirror_checkbutton = gtk_check_button_new_with_label("Check Mirroring");
         setting_checkrotation_checkbutton = gtk_check_button_new_with_label("Check Rotation");
 
     // Info readout/display area
-        // TODO: move to span entire bottom row, or use workarounds for variable width
     info_display = gtk_label_new (NULL);
     gtk_label_set_markup(GTK_LABEL(info_display),
                          g_markup_printf_escaped("Tile Info:"));
@@ -275,15 +282,20 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_overlay_grid_checkbutton,     0, 2, 3, 4);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_overlay_tileids_checkbutton,  0, 2, 4, 5);
 
-    gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_processing_label,                2, 4, 0, 1);
-        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_label,              2, 4, 1, 2);
-        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_width_spinbutton,   2, 3, 2, 3);
-        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_height_spinbutton,  3, 4, 2, 3);
-        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 4, 3, 4);
-        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 4, 4, 5);
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_processing_label,                2, 3, 0, 1);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_label,              2, 3, 1, 2);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_hbox,               2, 3, 2, 3);
+        //gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_width_spinbutton,   2, 3, 2, 3);
+        //gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_height_spinbutton,  3, 4, 2, 3);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 3, 3, 4);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 3, 4, 5);
 
     gtk_table_attach_defaults (GTK_TABLE (setting_table), info_display,        4, 5, 0, 5);  // Middle of table
-    gtk_table_attach_defaults (GTK_TABLE (setting_table), mouse_hover_frame, 0, 5, 5, 6); // Entire bottom row
+
+    // Attach mouse hover info area to bottom of main vbox (below table)
+    gtk_box_pack_start (GTK_BOX (main_vbox), mouse_hover_frame, FALSE, FALSE, 0);
+
+
 
     gtk_widget_show (setting_table);
 
@@ -295,6 +307,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
     gtk_widget_show (setting_processing_label);
         gtk_widget_show (setting_tilesize_label);
+        gtk_widget_show (setting_tilesize_hbox);
         gtk_widget_show (setting_tilesize_width_spinbutton);
         gtk_widget_show (setting_tilesize_height_spinbutton);
         gtk_widget_show (setting_checkmirror_checkbutton);
