@@ -12,6 +12,12 @@
         WIDGET_TILESIZE_HEIGHT,
     };
 
+    const gchar * const finalbpp_strs[] = { "Src Image", "1", "2", "3", "4", "8", "16", "24", "32"};
+    const gchar * const srcbpp_str[] = {" ", "INDEXED", "INDEXED-A", "RGB", "RGB-A"};
+
+    #define ARRAY_LEN(x)  (int)(sizeof(x) / sizeof((x)[0]))
+
+
     gboolean tilemap_dialog_show(GimpDrawable *drawable);
     void     tilemap_dialog_processing_run (GimpDrawable *drawable, GimpPreview  *preview);
 
