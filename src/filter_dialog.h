@@ -13,7 +13,7 @@
     };
 
     const gchar * const finalbpp_strs[] = { "Src Image", "1", "2", "3", "4", "8", "16", "24", "32"};
-    const gchar * const srcbpp_str[] = {" ", "INDEXED", "INDEXED-A", "RGB", "RGB-A"};
+    const gchar * const srcbpp_str[] = {" ", "(INDEXED)", "(INDEXED-A)", "(RGB)", "(RGB-A)"};
 
     #define ARRAY_LEN(x)  (int)(sizeof(x) / sizeof((x)[0]))
 

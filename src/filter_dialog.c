@@ -943,7 +943,7 @@ static void info_display_update() {
 
 
         gtk_label_set_markup(GTK_LABEL(tile_info_display),
-             g_markup_printf_escaped("<b>Tile Info:</b>\n"
+             g_markup_printf_escaped("<b>Tile Info</b>\n"
                                      "Size: %d x %d\n"
                                      "Tiled Map: %d x %d\n"
                                      "Image: %d x %d\n"
@@ -958,7 +958,7 @@ static void info_display_update() {
         gtk_label_set_markup(GTK_LABEL(memory_info_display),
              g_markup_printf_escaped("<b>Memory Info</b>\n"
                                      //"Color Mode: %d byte/pixel\n"
-                                    "Bits-per-pixel: %d (%s)\n"
+                                    "Bits-per-pixel: %d %s\n"
                                     "Tile Bytes: %d\n"
                                     "Tile Set Bytes: %d\n"
                                     "Tile Map Var Size: %d byte\n"
