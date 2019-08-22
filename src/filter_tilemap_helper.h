@@ -10,8 +10,11 @@
         gint  tile_width;
         gint  tile_height;
         gint  scale_factor;
-        gint overlay_grid_enabled;
-        gint overlay_tileids_enabled;
+
+        gint  overlay_grid_enabled;
+        gint  overlay_tileids_enabled;
+
+        gint  finalbpp;
     //  gint  offset_x;
     //  gint  offset_y;
 

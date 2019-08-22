@@ -38,24 +38,25 @@ static void on_scaled_preview_mouse_moved(GtkWidget * window, gpointer callback_
 static void on_setting_scale_spinbutton_changed(GtkSpinButton *, gpointer);
 static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
 static void on_setting_overlay_checkbutton_changed(GtkToggleButton *, gpointer);
+static void on_setting_finalbpp_combo_changed(GtkComboBox *, gpointer);
 
 static void dialog_settings_apply_to_ui();
 static void dialog_settings_connect_signals(GimpDrawable *);
 
-static void update_text_readout();
+static void info_display_update();
 
 gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
 
 static void tilemap_calculate(uint8_t *, gint, gint, gint);
 static void tilemap_invalidate();
-static void tilemap_printinfo(gint, gint, gint);
 
 static void tilemap_render_overlay();
 static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc);
 
 // Widget for displaying the upscaled image preview
 static GtkWidget * preview_scaled;
-static GtkWidget * info_display;
+static GtkWidget * tile_info_display;
+static GtkWidget * memory_info_display;
 static GtkWidget * mouse_hover_display;
 
 
@@ -65,6 +66,8 @@ static GtkWidget * setting_scale_spinbutton;
 
 static GtkWidget * setting_overlay_grid_checkbutton;
 static GtkWidget * setting_overlay_tileids_checkbutton;
+
+static GtkWidget * setting_finalbpp_combo;
 
 static GtkWidget * setting_tilesize_label;
 static GtkWidget * setting_tilesize_width_spinbutton;
@@ -126,20 +129,29 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     GtkWidget * setting_table;
     GtkWidget * setting_preview_label;
     GtkWidget * setting_processing_label;
+
     GtkWidget * setting_tilesize_hbox;
 
+    GtkWidget * setting_finalbpp_label;
+    GtkWidget * setting_finalbpp_hbox;
+
     GtkWidget * mouse_hover_frame;
-    // Info
-//    GtkWidget * info_display;
 
 
     gboolean   run;
     gint       idx;
+    guchar     dialog_title_str[255];
 
 
     gimp_ui_init (PLUG_IN_BINARY, FALSE);
 
-    dialog = gimp_dialog_new ("Tilemap Helper", PLUG_IN_ROLE,
+    // Show source image bits-per-pixel and image mode in the dialog title if possible
+    if ((drawable->bpp >=1) && (drawable->bpp < ARRAY_LEN(srcbpp_str)))
+        snprintf(dialog_title_str, 255, "Tilemap Helper  - Source Image: %s", srcbpp_dialogtitle_str[drawable->bpp]);
+    else
+        snprintf(dialog_title_str, 255, "Tilemap Helper");
+
+    dialog = gimp_dialog_new (dialog_title_str, PLUG_IN_ROLE,
                             NULL, 0,
                             gimp_standard_help_func, PLUG_IN_PROCEDURE,
 
@@ -241,8 +253,8 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         setting_tilesize_label = gtk_label_new ("Tile size (w x h):  " );
         gtk_misc_set_alignment(GTK_MISC(setting_tilesize_label), 0.0f, 0.5f); // Left-align
         // Tile width/height widgets
-        setting_tilesize_width_spinbutton  = gtk_spin_button_new_with_range(1,256,1); // Min/Max/Step
-        setting_tilesize_height_spinbutton = gtk_spin_button_new_with_range(1,256,1); // Min/Max/Step
+        setting_tilesize_width_spinbutton  = gtk_spin_button_new_with_range(2,256,1); // Min/Max/Step
+        setting_tilesize_height_spinbutton = gtk_spin_button_new_with_range(2,256,1); // Min/Max/Step
 
         // Horizontal box for tile width/height widgets
         // (Forces them to a nicer looking, smaller size)
@@ -257,12 +269,46 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         setting_checkrotation_checkbutton = gtk_check_button_new_with_label("Check Rotation");
 
     // Info readout/display area
-    info_display = gtk_label_new (NULL);
-    gtk_label_set_markup(GTK_LABEL(info_display),
-                         g_markup_printf_escaped("Tile Info:"));
-    gtk_label_set_max_width_chars(GTK_LABEL(info_display), 29);
-    gtk_label_set_ellipsize(GTK_LABEL(info_display),PANGO_ELLIPSIZE_END);
-    gtk_misc_set_alignment(GTK_MISC(info_display), 0.0f, 0.5f); // Left-align
+    tile_info_display = gtk_label_new (NULL);
+    gtk_label_set_markup(GTK_LABEL(tile_info_display),
+                         g_markup_printf_escaped("<b>Tiles:</b>"));
+    gtk_label_set_max_width_chars(GTK_LABEL(tile_info_display), 29);
+    gtk_label_set_ellipsize(GTK_LABEL(tile_info_display),PANGO_ELLIPSIZE_END);
+    gtk_misc_set_alignment(GTK_MISC(tile_info_display), 0.0f, 0.0f);
+
+    memory_info_display = gtk_label_new (NULL);
+    gtk_label_set_markup(GTK_LABEL(memory_info_display),
+                         g_markup_printf_escaped("<b>Memory:</b>"));
+    gtk_label_set_max_width_chars(GTK_LABEL(memory_info_display), 29);
+    gtk_label_set_ellipsize(GTK_LABEL(memory_info_display),PANGO_ELLIPSIZE_END);
+    gtk_misc_set_alignment(GTK_MISC(memory_info_display), 1.0f, 0.0f);
+    gtk_label_set_justify(GTK_LABEL(memory_info_display), GTK_JUSTIFY_RIGHT);
+
+        // Combo box to customize the final bits-per-pixel of the tile data
+        setting_finalbpp_label = gtk_label_new("Bits-per-pixel: ");
+        gtk_misc_set_alignment(GTK_MISC(setting_finalbpp_label), 1.0, 0.5f);
+
+        setting_finalbpp_combo = gtk_combo_box_text_new ();
+        gtk_misc_set_alignment(GTK_MISC(setting_finalbpp_combo), 1.0f, 0.5f);
+
+         // Load first entry: "Source Image" bpp setting with image mode displayed
+         if ((drawable->bpp >=1) && (drawable->bpp < ARRAY_LEN(srcbpp_str)))
+            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(setting_finalbpp_combo), srcbpp_str[drawable->bpp]);
+        else
+            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(setting_finalbpp_combo), finalbpp_strs[0]);
+
+        // Load the rest of the fixed-value entries from a const array
+        for (idx = 1; idx < ARRAY_LEN(finalbpp_strs); idx++)
+            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(setting_finalbpp_combo), finalbpp_strs[idx]);
+        gtk_combo_box_set_active(GTK_COMBO_BOX(setting_finalbpp_combo), 0);
+
+        // Horizontal box for tile final bits-per-pixel selector and label
+        // (Forces them to a smaller size)
+        setting_finalbpp_hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+        gtk_container_set_border_width (GTK_CONTAINER (setting_finalbpp_hbox), 0);
+        gtk_box_pack_end (GTK_BOX (setting_finalbpp_hbox), setting_finalbpp_combo, FALSE, FALSE, 0);
+        gtk_box_pack_end (GTK_BOX (setting_finalbpp_hbox), setting_finalbpp_label, FALSE, FALSE, 0);
+
 
 
     // Info readout/display area for mouse hover on the scaled preview area
@@ -285,12 +331,14 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
     gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_processing_label,                2, 3, 0, 1);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_label,              2, 3, 1, 2);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_hbox,               2, 3, 2, 3);
-        //gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_width_spinbutton,   2, 3, 2, 3);
-        //gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_height_spinbutton,  3, 4, 2, 3);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 3, 3, 4);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 3, 4, 5);
 
-    gtk_table_attach_defaults (GTK_TABLE (setting_table), info_display,        4, 5, 0, 5);  // Middle of table
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), tile_info_display,        3, 4, 0, 5);  // Vertical Column
+
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), memory_info_display,      4, 5, 0, 4);  // Vertical Column
+
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_finalbpp_hbox,    4, 5, 4, 5);  // Bottom right
 
     // Attach mouse hover info area to bottom of main vbox (below table)
     gtk_box_pack_start (GTK_BOX (main_vbox), mouse_hover_frame, FALSE, FALSE, 0);
@@ -313,7 +361,12 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         gtk_widget_show (setting_checkmirror_checkbutton);
         gtk_widget_show (setting_checkrotation_checkbutton);
 
-    gtk_widget_show (info_display);
+    gtk_widget_show (tile_info_display);
+
+    gtk_widget_show (memory_info_display);
+        gtk_widget_show (setting_finalbpp_hbox);
+        gtk_widget_show (setting_finalbpp_label);
+        gtk_widget_show (setting_finalbpp_combo);
 
     gtk_widget_show (mouse_hover_display);
     gtk_widget_show (mouse_hover_frame);
@@ -375,6 +428,11 @@ void tilemap_dialog_imageid_set(gint32 new_image_id) {
 //
 void dialog_settings_apply_to_ui() {
 
+    gint idx;
+    //gchar * compare_str[255];
+    gchar incoming_val_str[255];
+
+
     //printf("==== Applying Dialog Settings to UI\n");
     // ======== UPDATE WIDGETS TO CURRENT SETTINGS ========
 
@@ -384,6 +442,16 @@ void dialog_settings_apply_to_ui() {
 
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_overlay_grid_checkbutton),    dialog_settings.overlay_grid_enabled);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_overlay_tileids_checkbutton), dialog_settings.overlay_tileids_enabled);
+
+    gtk_combo_box_set_active(GTK_COMBO_BOX(setting_finalbpp_combo), 0);
+
+    // Loop through combo options to see if any match the string for the finalbpp value,
+    // if there is a match then update combo box selection
+    snprintf(incoming_val_str, 255, "%d", dialog_settings.finalbpp);
+
+    for (idx = 0; idx < ARRAY_LEN(finalbpp_strs); idx++)
+            if (!(g_strcmp0( incoming_val_str, finalbpp_strs[idx] )))
+            gtk_combo_box_set_active(GTK_COMBO_BOX(setting_finalbpp_combo), idx);
 }
 
 
@@ -419,11 +487,15 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
     g_signal_connect (setting_tilesize_height_spinbutton, "value-changed",
                       G_CALLBACK (on_setting_tilesize_spinbutton_changed), GINT_TO_POINTER(WIDGET_TILESIZE_HEIGHT));
 
+    // Overlay control changes (will require a re-render)
     g_signal_connect(G_OBJECT(setting_overlay_grid_checkbutton), "toggled",
                       G_CALLBACK(on_setting_overlay_checkbutton_changed), NULL);
     g_signal_connect(G_OBJECT(setting_overlay_tileids_checkbutton), "toggled",
                       G_CALLBACK(on_setting_overlay_checkbutton_changed), NULL);
 
+    // Final bits-per-pixel change for Memory info readout (just needs a recalc)
+    g_signal_connect (setting_finalbpp_combo, "changed",
+                      G_CALLBACK (on_setting_finalbpp_combo_changed), NULL);
 
     // ======== HANDLE PROCESSING UPDATES VIA UI CONTROL VALUE CHANGES ========
 
@@ -443,6 +515,8 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
     g_signal_connect_swapped (setting_overlay_tileids_checkbutton, "toggled",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 }
+
+
 
 
 
@@ -513,24 +587,14 @@ static void on_setting_overlay_checkbutton_changed(GtkToggleButton * p_togglebut
 }
 
 
-static void update_text_readout()
+static void on_setting_finalbpp_combo_changed(GtkComboBox *combo, gpointer callback_data)
 {
-    /*
-    gtk_label_set_markup(GTK_LABEL(info_display),
-                     g_markup_printf_escaped("Tile: %d x %d\n"
-                                             "Image: %d x %d\n"
-                                             "Tiled Map: %d x %d\n"
-                                             "Total Colors: %d\n"
-                                             "Max colors per tile: %d (#%d)\n"
-                                             "Color Mode: Indexed",
+    dialog_settings.finalbpp = atoi(gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(combo)));
 
-                                             dialog_settings.tile_width,dialog_settings.tile_height,
-                                             640,480,
-                                             80, 60,
-                                             16, 8,
-                                             12));
-*/
+    info_display_update();
 }
+
+
 
 
 // Checks to see whether the scaled preview area needs
@@ -631,6 +695,7 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
     // Get bit depth and alpha mask status
     src_bpp = drawable->bpp;
 
+    // TODO: move this to a function?
     // If image is INDEXED or INDEXED ALPHA
     // Then promote dest image: 1 bpp -> RGB 3 bpp, 2 bpp (alpha) -> RGBA 4bpp
     if (src_bpp <= 2)
@@ -743,7 +808,7 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
         }
 
         // Update the info display area
-        update_text_readout();
+        // update_text_readout();
 
     }
     else
@@ -771,35 +836,6 @@ static void tilemap_invalidate() {
 
 
 
-static void tilemap_printinfo(gint bpp, gint width, gint height) {
-
-    tile_map_data * p_map;
-    tile_set_data * p_tile_set;
-
-    // TODO: check cached tile size a better way than this:
-    p_map      = tilemap_get_map();
-/*
-    printf("tilemap_needs_recalc = %d"
-    "\n------\n"
-    "tilemap calc: \n"
-    "app_image.bytes_per_pixel != bpp (%d , %d) \n"
-    "app_image.width      != width (%d , %d) \n"
-    "app_image.height     != height (%d , %d) \n"
-    "app_image.size       != width * height * bpp (%d , %d) \n"
-    "p_map->tile_width    != dialog_settings.tile_width (%d , %d) \n"
-    "p_map->tile_height   != dialog_settings.tile_height (%d , %d)\n",
-    tilemap_needs_recalc,
-    app_image.bytes_per_pixel , bpp,
-    app_image.width      , width,
-    app_image.height     , height,
-    app_image.size       , (width * height * bpp),
-    p_map->tile_width    , dialog_settings.tile_width,
-    p_map->tile_height   , dialog_settings.tile_height);
-*/
-}
-
-
-
 
 // TODO: variable tile size (push down via app settings?)
 //  gint image_id, gint drawable_id, gint image_mode)
@@ -814,9 +850,7 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
 
     status = TRUE; // Default to success
 
-    tilemap_printinfo(bpp, width, height);
-
-/*
+    /*
 // TODO: FIXME Update getting triggered incorrectly by changes in scale
     // TODO: move into function
     // TODO: or tile size, mirror or rotate changed
@@ -869,36 +903,95 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
             p_map->tile_id_list -> uint8_t * p_map_data
             p_map->size
 
-
-
             */
-
-            gtk_label_set_markup(GTK_LABEL(info_display),
-                 g_markup_printf_escaped("Tiles: %d x %d\n"
-                                         "Image: %d x %d\n"
-                                         "Tiled Map: %d x %d\n"
-                                         "Map # Tiles: %d\n"
-                                         "Unique # Tiles: %d\n"
-//                                         "Total Colors: %d\n"
-//                                         "Max colors per tile: %d (#%d)\n"
-                                         "Color Mode: %d",
-
-                                         p_map->tile_width,     p_map->tile_height,
-                                         p_map->map_width,      p_map->map_height,
-                                         p_map->width_in_tiles, p_map->height_in_tiles,
-                                         (p_map->width_in_tiles * p_map->height_in_tiles),
-                                         p_tile_set->tile_count,
-//                                         16, 8,
-                                         bpp));
-
             tilemap_needs_recalc = FALSE;
+
+            // TODO: consider moving this to call from somewhere else, maybe end of "Run" function (BUT ON DIALOG DISPLAY MODE ONLY!, NOT HEADLESS/STANDALONE)
+            info_display_update();
+
             printf("tilemap:done --> tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
         }
         else
             printf("Tilemap: Recalc FAILED: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
     }
     else
-                printf("Tilemap: NO Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+         printf("Tilemap: NO Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+}
+
+
+
+
+static void info_display_update() {
+
+    tile_map_data * p_map;
+    tile_set_data * p_tile_set;
+
+    gint final_bitsperpixel;
+    gint tilemap_storage_size;
+
+    // TODO: FIXME: implement better handling for valid map data (tilemap_is_valid()?)
+    // TODO: maybe display "no valid data" when no valid tile map calculated (or maybe not, since it's less startling when comparing tile sizes)
+
+    if (tilemap_needs_recalc == FALSE) {
+
+        p_map      = tilemap_get_map();
+        p_tile_set = tilemap_get_tile_set();
+
+        // Use bpp from source image when finalbpp combo is "0", i.e "Src Image"
+        // Otherwise use combo value directly
+        if (dialog_settings.finalbpp == 0) {
+            // Convert source image bytes into bits-per-pixel
+            final_bitsperpixel = p_tile_set->tile_bytes_per_pixel * 8;
+        }
+        else
+            final_bitsperpixel = dialog_settings.finalbpp;
+
+
+        // Use u8 for tilemap array when possible, otherwise u16
+        if ((p_tile_set->tile_count > 255) || (p_map->width_in_tiles > 255) || (p_map->height_in_tiles > 255))
+            tilemap_storage_size = sizeof(uint16_t);
+        else
+            tilemap_storage_size = sizeof(uint8_t);
+
+        gtk_label_set_markup(GTK_LABEL(tile_info_display),
+             g_markup_printf_escaped("<b>Tile Info</b>\n"
+                                    "<span font_family='monospace'>"
+                                     "Size:     %4d x %-4d\n"
+                                     "Tiled Map:%4d x %-4d\n"
+                                     "Image:    %4d x %-4d\n"
+                                     "\n"
+                                     "Map # Tiles:   %4d\n"
+                                     "Unique # Tiles:%4d\n"
+                                    "</span>"
+                                     ,
+                                     p_map->tile_width,     p_map->tile_height,
+                                     p_map->width_in_tiles, p_map->height_in_tiles,
+                                     p_map->map_width,      p_map->map_height,
+                                     (p_map->width_in_tiles * p_map->height_in_tiles),
+                                     p_tile_set->tile_count));
+
+        gtk_label_set_markup(GTK_LABEL(memory_info_display),
+             g_markup_printf_escaped("<b>Memory Info (in bytes)</b>\n"
+                                    "<span font_family='monospace'>"
+                                    "Tile: %'6d\n"
+                                    "Tile Set: %'6d\n"
+                                    "Map Entry: %'6d\n"
+                                    "Map Total: %'6d\n"
+                                    "Map + Tiles: %'6d"
+                                    "</span>"
+                                    ,
+                                    // Tile Bytes
+                                    ((p_map->tile_width * p_map->tile_height) * final_bitsperpixel) / 8,  // / 8 bits per byte
+                                    // Tile Set Bytes
+                                    ((p_map->tile_width * p_map->tile_height) * final_bitsperpixel * p_tile_set->tile_count) / 8,  // / 8 bits per byte
+                                    // Tile Map Var Size & Tile Map Bytes
+                                    tilemap_storage_size,
+                                    (p_map->width_in_tiles * p_map->height_in_tiles) * tilemap_storage_size,
+                                    // Total Bytes
+                                    (((p_map->tile_width * p_map->tile_height) * final_bitsperpixel * p_tile_set->tile_count) / 8)  // / 8 bits per byte
+                                     + ((p_map->width_in_tiles * p_map->height_in_tiles) * tilemap_storage_size)
+                                     ));
+    }
 }
 
 
