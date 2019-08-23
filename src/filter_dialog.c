@@ -342,38 +342,14 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 3, 4, 5);
 
     gtk_table_attach_defaults (GTK_TABLE (setting_table), tile_info_display,        3, 4, 0, 5);  // Vertical Column
-
     gtk_table_attach_defaults (GTK_TABLE (setting_table), memory_info_display,      4, 5, 0, 4);  // Vertical Column
-
     gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_finalbpp_hbox,    4, 5, 4, 5);  // Bottom right
 
     // Attach mouse hover info area to bottom of main vbox (below table)
     gtk_box_pack_start (GTK_BOX (main_vbox), mouse_hover_frame, FALSE, FALSE, 0);
 
 
-
-    gtk_widget_show (setting_table);
-
-    gtk_widget_show (setting_preview_label);
-        gtk_widget_show (setting_overlay_grid_checkbutton);
-        gtk_widget_show (setting_overlay_tileids_checkbutton);
-        gtk_widget_show (setting_scale_label);
-        gtk_widget_show (setting_scale_spinbutton);
-
-    gtk_widget_show (setting_processing_label);
-        gtk_widget_show (setting_tilesize_label);
-        gtk_widget_show (setting_tilesize_hbox);
-        gtk_widget_show (setting_tilesize_width_spinbutton);
-        gtk_widget_show (setting_tilesize_height_spinbutton);
-        gtk_widget_show (setting_checkmirror_checkbutton);
-        gtk_widget_show (setting_checkrotation_checkbutton);
-
-    gtk_widget_show (tile_info_display);
-
-    gtk_widget_show (memory_info_display);
-        gtk_widget_show (setting_finalbpp_hbox);
-        gtk_widget_show (setting_finalbpp_label);
-        gtk_widget_show (setting_finalbpp_combo);
+    gtk_widget_show_all (setting_table);
 
     gtk_widget_show (mouse_hover_display);
     gtk_widget_show (mouse_hover_frame);
