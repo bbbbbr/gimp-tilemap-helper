@@ -5,16 +5,14 @@
 #ifndef __FILTER_DIALOG_H_
 #define __FILTER_DIALOG_H_
 
+    // #pragma message ( "INCLUDED: filter_dialog.h" )
+
     #include <stdint.h>
 
     enum dialog_widgets {
         WIDGET_TILESIZE_WIDTH,
         WIDGET_TILESIZE_HEIGHT,
     };
-
-    const gchar * const finalbpp_strs[] = { "Src Image", "1", "2", "3", "4", "8", "16", "24", "32"};
-    const gchar * const srcbpp_str[] = {" ", "Source: 8", "Source: 16", "Source: 24", "Source: 32"};
-    const gchar * const srcbpp_dialogtitle_str[] = {" ", "8 bits/pixel, Indexed", "16 bits/pixel, Indexed-A", "24 bits/pixel, RGB", "32 bits/pixel, RGB-A"};
 
     #define ARRAY_LEN(x)  (int)(sizeof(x) / sizeof((x)[0]))
 

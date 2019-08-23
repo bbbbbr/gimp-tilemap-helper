@@ -53,6 +53,13 @@ static void tilemap_invalidate();
 static void tilemap_render_overlay();
 static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc);
 
+
+const gchar * const finalbpp_strs[]          = { "Src Image", "1", "2", "3", "4", "8", "16", "24", "32"};
+const gchar * const srcbpp_str[]             = {" ", "Source: 8", "Source: 16", "Source: 24", "Source: 32"};
+const gchar * const srcbpp_dialogtitle_str[] = {" ", "8 bits/pixel, Indexed", "16 bits/pixel, Indexed-A", "24 bits/pixel, RGB", "32 bits/pixel, RGB-A"};
+
+
+
 // Widget for displaying the upscaled image preview
 static GtkWidget * preview_scaled;
 static GtkWidget * tile_info_display;
