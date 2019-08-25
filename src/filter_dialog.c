@@ -126,7 +126,7 @@ Color Mode: Indexed / Etc
 /*******************************************************/
 /*               Main Plug-in Dialog                   */
 /*******************************************************/
-gboolean tilemap_dialog_show (GimpDrawable *drawable)
+gint tilemap_dialog_show (GimpDrawable *drawable)
 {
     GtkWidget * dialog;
     GtkWidget * main_vbox;
@@ -144,8 +144,7 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
     GtkWidget * mouse_hover_frame;
 
-
-    gboolean   run;
+    gboolean   run_result;
     gint       idx;
     guchar     dialog_title_str[255];
 
@@ -162,9 +161,15 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
                             NULL, 0,
                             gimp_standard_help_func, PLUG_IN_PROCEDURE,
 
-                            GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-                            GTK_STOCK_OK,     GTK_RESPONSE_OK,
+                            GTK_BUTTONS_NONE,
 
+                            NULL);
+
+
+    gtk_dialog_add_buttons (GTK_DIALOG (dialog),
+                            "Create Tileset", GTK_RESPONSE_APPLY,
+                            "Cancel",         GTK_RESPONSE_CANCEL,
+                            "Keep Settings",  GTK_RESPONSE_OK,
                             NULL);
 
     // Resize to show more of scaled preview by default (this sets MIN size)
@@ -342,38 +347,14 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 3, 4, 5);
 
     gtk_table_attach_defaults (GTK_TABLE (setting_table), tile_info_display,        3, 4, 0, 5);  // Vertical Column
-
     gtk_table_attach_defaults (GTK_TABLE (setting_table), memory_info_display,      4, 5, 0, 4);  // Vertical Column
-
     gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_finalbpp_hbox,    4, 5, 4, 5);  // Bottom right
 
     // Attach mouse hover info area to bottom of main vbox (below table)
     gtk_box_pack_start (GTK_BOX (main_vbox), mouse_hover_frame, FALSE, FALSE, 0);
 
 
-
-    gtk_widget_show (setting_table);
-
-    gtk_widget_show (setting_preview_label);
-        gtk_widget_show (setting_overlay_grid_checkbutton);
-        gtk_widget_show (setting_overlay_tileids_checkbutton);
-        gtk_widget_show (setting_scale_label);
-        gtk_widget_show (setting_scale_spinbutton);
-
-    gtk_widget_show (setting_processing_label);
-        gtk_widget_show (setting_tilesize_label);
-        gtk_widget_show (setting_tilesize_hbox);
-        gtk_widget_show (setting_tilesize_width_spinbutton);
-        gtk_widget_show (setting_tilesize_height_spinbutton);
-        gtk_widget_show (setting_checkmirror_checkbutton);
-        gtk_widget_show (setting_checkrotation_checkbutton);
-
-    gtk_widget_show (tile_info_display);
-
-    gtk_widget_show (memory_info_display);
-        gtk_widget_show (setting_finalbpp_hbox);
-        gtk_widget_show (setting_finalbpp_label);
-        gtk_widget_show (setting_finalbpp_combo);
+    gtk_widget_show_all (setting_table);
 
     gtk_widget_show (mouse_hover_display);
     gtk_widget_show (mouse_hover_frame);
@@ -385,15 +366,15 @@ gboolean tilemap_dialog_show (GimpDrawable *drawable)
 
     // ======== SHOW THE DIALOG AND RUN IT ========
 
+    // TODO: is this still needed?
     tilemap_invalidate();
 
+
     gtk_widget_show (dialog);
-
-    run = (gimp_dialog_run (GIMP_DIALOG (dialog)) == GTK_RESPONSE_OK);
-
+    run_result = gimp_dialog_run (GIMP_DIALOG (dialog));
     gtk_widget_destroy (dialog);
 
-    return run;
+    return run_result;
 }
 
 
@@ -665,6 +646,7 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     glong        srcbuf_size = 0;
     scaled_output_info * scaled_output;
 
+    color_data   color_map;
     guchar     * p_colormap_buf = NULL;
     gint         colormap_numcolors = 0;
 
@@ -746,6 +728,10 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
         if (gimp_drawable_is_indexed(drawable->drawable_id)) {
             // Load the color map and copy it to a working buffer
             p_colormap_buf = gimp_image_get_colormap(image_id, &colormap_numcolors);
+
+            // Make a local copy of the color map (rgb24 * number of colors)
+            memcpy(&(color_map.pal[0]), p_colormap_buf, colormap_numcolors * 3);
+            color_map.color_count = colormap_numcolors;
         }
         else
             colormap_numcolors = 0;
@@ -759,6 +745,9 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
             tilemap_calculate(p_srcbuf,
                               src_bpp,
                               width, height);
+
+            tilemap_color_data_set(&color_map);
+
         }
 
 

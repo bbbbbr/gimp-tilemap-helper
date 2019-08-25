@@ -13,6 +13,7 @@
 // Globals
 tile_map_data tile_map;
 tile_set_data tile_set;
+color_data    colormap;
 
 
 
@@ -87,6 +88,7 @@ unsigned char process_tiles(image_data * p_src_img) {
 
     map_slot = 0;
 
+    // TODO: why isn't this using pre-initialized values in tile_set ?
     tile.raw_bytes_per_pixel = p_src_img->bytes_per_pixel;
     tile.raw_width           = tile_map.tile_width;
     tile.raw_height          = tile_map.tile_height;
@@ -233,7 +235,8 @@ int32_t tilemap_get_image_of_deduped_tile_set(image_data * p_img) {
     p_img->size   = tile_set.tile_size   * tile_set.tile_count;
     p_img->bytes_per_pixel = tile_set.tile_bytes_per_pixel;
 
-printf("== COPY TILES INTO COMPOSITE BUF %d x %d, total size=%d\n", p_img->width, p_img->height, p_img->size);
+    // printf("== COPY TILES INTO COMPOSITE BUF %d x %d, total size=%d\n", p_img->width, p_img->height, p_img->size);
+
     // Allocate a buffer for the image
     p_img->p_img_data = malloc(p_img->size);
 
@@ -246,12 +249,11 @@ printf("== COPY TILES INTO COMPOSITE BUF %d x %d, total size=%d\n", p_img->width
             if (tile_set.tiles[c].p_img_raw) {
                 // Copy from the tile's raw image buffer (indexed)
                 // into the composite image
-
-tile_print_buffer_raw(tile_set.tiles[c]); // TODO: remove
-
                 memcpy(p_img->p_img_data + img_offset,
                        tile_set.tiles[c].p_img_raw,
                        tile_set.tile_size);
+
+                // tile_print_buffer_raw(tile_set.tiles[c]); // TODO: remove
             }
             else
                 return false;
@@ -262,14 +264,16 @@ tile_print_buffer_raw(tile_set.tiles[c]); // TODO: remove
     else
         return false;
 
-    printf("== TILEMAP -> IMG COPIED BUFF\n");
-
-    // Iterate over each tile, top -> bottom, left -> right
-    for (c = 0; c < p_img->size; c++) {
-        printf(" %2x", *(p_img->p_img_data + c));
-        if ((c % 8) ==0) printf("\n");
-    }
-    printf(" \n");
-
     return true;
+}
+
+
+// Set local indexed color map for later retrieval
+void tilemap_color_data_set(color_data * p_color_data) {
+    memcpy(&colormap, p_color_data, sizeof(color_data));
+}
+
+// Return pointer to locally stored indexed color map
+color_data * tilemap_color_data_get(void) {
+    return &colormap;
 }

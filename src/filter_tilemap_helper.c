@@ -20,6 +20,7 @@
 #include "filter_dialog.h"
 #include "scale.h"
 #include "lib_tilemap.h"
+#include "filter_image.h"
 
 
 const char PLUG_IN_PROCEDURE[] = "filter-tilemap-proc";
@@ -93,6 +94,31 @@ static void query(void)
 
 
 
+// Create deduplicated tileset if requested when the user closed the dialog
+static void handle_tileset_create(gint * nreturn_vals, GimpParam * return_values) {
+
+    int                new_image_id; // used if a tile set image is created
+
+    // TODO: export tile map as well?
+
+    // Try to create new image from deduplicated tile set
+    new_image_id = tilemap_create_tileset_image();
+
+    if(new_image_id == -1)
+        // create image failed
+        return_values[0].data.d_status = GIMP_PDB_EXECUTION_ERROR;
+    else
+    {
+        // Indicate successful creation of image
+        return_values[0].data.d_status = GIMP_PDB_SUCCESS;
+
+        // Fill in the second return value
+        *nreturn_vals = 2;
+        return_values[1].type         = GIMP_PDB_IMAGE;
+        return_values[1].data.d_image = new_image_id;
+    }
+}
+
 
 
 // The run function
@@ -107,7 +133,8 @@ static void run(const gchar      * name,
     GimpRunMode        run_mode;
     GimpDrawable       *drawable;
     GimpPDBStatusType  status = GIMP_PDB_SUCCESS;
-    gint32 image_id, drawable_id;
+    gint32             image_id, drawable_id;
+    gint               dialog_response;
 
     run_mode      = param[0].data.d_int32;
 
@@ -124,7 +151,7 @@ static void run(const gchar      * name,
     // return_values[0].data.d_status = GIMP_PDB_SUCCESS;
     return_values[0].data.d_status = status;
 
-printf("================================= Filter Main: run mode=%d    ================================= \n\n\n\n",run_mode);
+printf("================================= Filter Main: run mode=%d  image_id = %d   ================================= \n\n\n\n",run_mode, image_id);
 
     scale_init();
     tilemap_dialog_imageid_set(image_id);
@@ -140,8 +167,20 @@ printf("================================= Filter Main: run mode=%d    ==========
             tilemap_dialog_settings_set(&plugin_config_vals);
 
             //  Open the dialog
-                if (! tilemap_dialog_show (drawable))
-                    return;
+            dialog_response = tilemap_dialog_show (drawable);
+
+            // Handle response from dialog (which button the user pressed)
+            switch (dialog_response) {
+                case GTK_RESPONSE_CANCEL: // Do nothing, exit
+                                          return;
+
+                case GTK_RESPONSE_APPLY:  handle_tileset_create(nreturn_vals, return_values);
+                                          return; // No more to do, exit plugin
+
+                case GTK_RESPONSE_OK:     // Shim reponse.. continue below (TODO: move "keep settings" handling up here)
+                                          break;
+            }
+
             break;
 
         case GIMP_RUN_NONINTERACTIVE:
@@ -184,6 +223,7 @@ printf("================================= Filter Main: run mode=%d    ==========
         gimp_displays_flush ();
         */
 
+        // TODO: move this to a function, then call it from the above dialog response handler for ..._OK
         // Retrieve and then save plugin config settings
         if (run_mode == GIMP_RUN_INTERACTIVE) {
             // Get settings/config from dialog

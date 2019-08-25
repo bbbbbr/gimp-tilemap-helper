@@ -76,6 +76,9 @@
     tile_map_data * tilemap_get_map(void);
     tile_set_data * tilemap_get_tile_set(void);
 
+    void         tilemap_color_data_set(color_data * p_color_data);
+    color_data * tilemap_color_data_get(void);
+
     int32_t tilemap_get_image_of_deduped_tile_set(image_data * p_img);
 
 #endif // LIB_TILEMAP_HEADER
