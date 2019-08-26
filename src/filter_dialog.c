@@ -169,7 +169,7 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
     gtk_dialog_add_buttons (GTK_DIALOG (dialog),
                             "Create Tileset", GTK_RESPONSE_APPLY,
                             "Cancel",         GTK_RESPONSE_CANCEL,
-                            "Keep Settings",  GTK_RESPONSE_OK,
+                            "Save Settings",  GTK_RESPONSE_OK,
                             NULL);
 
     // Resize to show more of scaled preview by default (this sets MIN size)
@@ -902,16 +902,16 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
             */
             tilemap_needs_recalc = FALSE;
 
-            // TODO: consider moving this to call from somewhere else, maybe end of "Run" function (BUT ON DIALOG DISPLAY MODE ONLY!, NOT HEADLESS/STANDALONE)
-            info_display_update();
-
-            printf("tilemap:done --> tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+            //printf("tilemap:done --> tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
         }
-        else
-            printf("Tilemap: Recalc FAILED: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+        //else
+        //    printf("Tilemap: Recalc FAILED: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
     }
-    else
-         printf("Tilemap: NO Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+    //else
+    //     printf("Tilemap: NO Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+
+    info_display_update();
+
 }
 
 
@@ -950,44 +950,49 @@ static void info_display_update() {
             tilemap_storage_size = sizeof(uint8_t);
 
         gtk_label_set_markup(GTK_LABEL(tile_info_display),
-             g_markup_printf_escaped("<b>Tile Info</b>\n"
-                                    "<span font_family='monospace'>"
-                                     "Size:     %4d x %-4d\n"
-                                     "Tiled Map:%4d x %-4d\n"
-                                     "Image:    %4d x %-4d\n"
-                                     "\n"
-                                     "Map # Tiles:   %4d\n"
-                                     "Unique # Tiles:%4d\n"
-                                    "</span>"
-                                     ,
-                                     p_map->tile_width,     p_map->tile_height,
-                                     p_map->width_in_tiles, p_map->height_in_tiles,
-                                     p_map->map_width,      p_map->map_height,
-                                     (p_map->width_in_tiles * p_map->height_in_tiles),
-                                     p_tile_set->tile_count));
+             g_markup_printf_escaped(
+                "<b>Tile Info</b>\n"
+                "<span font_family='monospace'>"
+                    "Size:     %4d x %-4d\n"
+                    "Tiled Map:%4d x %-4d\n"
+                    "Image:    %4d x %-4d\n"
+                    "\n"
+                    "Map # Tiles:   %4d\n"
+                    "Unique # Tiles:%4d\n"
+                "</span>"
+                 ,
+                 p_map->tile_width,     p_map->tile_height,
+                 p_map->width_in_tiles, p_map->height_in_tiles,
+                 p_map->map_width,      p_map->map_height,
+                 (p_map->width_in_tiles * p_map->height_in_tiles),
+                 p_tile_set->tile_count));
 
         gtk_label_set_markup(GTK_LABEL(memory_info_display),
-             g_markup_printf_escaped("<b>Memory Info (in bytes)</b>\n"
-                                    "<span font_family='monospace'>"
-                                    "Tile: %'6d\n"
-                                    "Tile Set: %'6d\n"
-                                    "Map Entry: %'6d\n"
-                                    "Map Total: %'6d\n"
-                                    "Map + Tiles: %'6d"
-                                    "</span>"
-                                    ,
-                                    // Tile Bytes
-                                    ((p_map->tile_width * p_map->tile_height) * final_bitsperpixel) / 8,  // / 8 bits per byte
-                                    // Tile Set Bytes
-                                    ((p_map->tile_width * p_map->tile_height) * final_bitsperpixel * p_tile_set->tile_count) / 8,  // / 8 bits per byte
-                                    // Tile Map Var Size & Tile Map Bytes
-                                    tilemap_storage_size,
-                                    (p_map->width_in_tiles * p_map->height_in_tiles) * tilemap_storage_size,
-                                    // Total Bytes
-                                    (((p_map->tile_width * p_map->tile_height) * final_bitsperpixel * p_tile_set->tile_count) / 8)  // / 8 bits per byte
-                                     + ((p_map->width_in_tiles * p_map->height_in_tiles) * tilemap_storage_size)
-                                     ));
-    }
+             g_markup_printf_escaped(
+                "<b>Memory Info (in bytes)</b>\n"
+                "<span font_family='monospace'>"
+                   "Tile: %'6d\n"
+                   "Tile Set: %'6d\n"
+                   "Map Entry: %'6d\n"
+                   "Map Total: %'6d\n"
+                   "Map + Tiles: %'6d"
+                "</span>"
+                ,
+                // Tile Bytes
+                ((p_map->tile_width * p_map->tile_height) * final_bitsperpixel) / 8,  // / 8 bits per byte
+                // Tile Set Bytes
+                ((p_map->tile_width * p_map->tile_height) * final_bitsperpixel * p_tile_set->tile_count) / 8,  // / 8 bits per byte
+                // Tile Map Var Size & Tile Map Bytes
+                tilemap_storage_size,
+                (p_map->width_in_tiles * p_map->height_in_tiles) * tilemap_storage_size,
+                // Total Bytes
+                (((p_map->tile_width * p_map->tile_height) * final_bitsperpixel * p_tile_set->tile_count) / 8)  // / 8 bits per byte
+                 + ((p_map->width_in_tiles * p_map->height_in_tiles) * tilemap_storage_size)
+                 ));
+    } // end: if (tilemap_needs_recalc == FALSE) {
+    else gtk_label_set_markup(GTK_LABEL(tile_info_display),
+             g_markup_printf_escaped("<b>Tile Info</b>\n\n** No tiles available **\n ► Check tile sizing ◄" ));
+
 }
 
 
@@ -1066,15 +1071,12 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
             }
             else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
                      g_markup_printf_escaped("  ( No tiles available - check tile sizing )" ) );
-                // printf("Mouse Tile Display: NO TILES FOUND!\n");
 
         } else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
                      g_markup_printf_escaped(" " ) );
-            // else printf("Mouse Tile Display: Outside preview image bounds\n");
     }
     else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
                      g_markup_printf_escaped("  ( No tiles available - check tile sizing )" ) );
-        // printf("Mouse Tile Display: Not yet ready for display!\n");
 
 }
 
