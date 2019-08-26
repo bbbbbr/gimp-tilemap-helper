@@ -23,6 +23,7 @@
 #include "scale.h"
 #include "lib_tilemap.h"
 #include "tilemap_overlay.h"
+#include "tilemap_export.h"
 
 
 extern const char PLUG_IN_PROCEDURE[];
@@ -40,10 +41,14 @@ static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
 static void on_setting_overlay_checkbutton_changed(GtkToggleButton *, gpointer);
 static void on_setting_finalbpp_combo_changed(GtkComboBox *, gpointer);
 
+static void on_action_maptoclipboard_button_clicked(GtkButton *, gpointer);
+
+
 static void dialog_settings_apply_to_ui();
 static void dialog_settings_connect_signals(GimpDrawable *);
 
 static void info_display_update();
+static void tilemap_copy_map_to_clipboard();
 
 gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
 
@@ -83,6 +88,7 @@ static GtkWidget * setting_tilesize_height_spinbutton;
 static GtkWidget * setting_checkmirror_checkbutton;
 static GtkWidget * setting_checkrotation_checkbutton;
 
+static GtkWidget * action_maptoclipboard_button;
 
 static PluginTileMapVals dialog_settings;
 
@@ -167,7 +173,7 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
 
 
     gtk_dialog_add_buttons (GTK_DIALOG (dialog),
-                            "Create Tileset", GTK_RESPONSE_APPLY,
+                            "Create Tileset Image", GTK_RESPONSE_APPLY,
                             "Cancel",         GTK_RESPONSE_CANCEL,
                             "Save Settings",  GTK_RESPONSE_OK,
                             NULL);
@@ -331,6 +337,8 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
     gtk_container_add (GTK_CONTAINER (mouse_hover_frame), mouse_hover_display);
 
 
+    action_maptoclipboard_button = gtk_button_new_with_label("Copy Map -► Clipboard");
+
     // Attach the UI WIdgets to the table and show them all
     // gtk_table_attach_defaults (*attach_to, *widget, left_attach, right_attach, top_attach, bottom_attach)
     //
@@ -346,9 +354,12 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 3, 3, 4);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 3, 4, 5);
 
-    gtk_table_attach_defaults (GTK_TABLE (setting_table), tile_info_display,        3, 4, 0, 5);  // Vertical Column
+    gtk_table_attach_defaults (GTK_TABLE (setting_table), tile_info_display,        3, 4, 0, 4);  // Vertical Column
     gtk_table_attach_defaults (GTK_TABLE (setting_table), memory_info_display,      4, 5, 0, 4);  // Vertical Column
     gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_finalbpp_hbox,    4, 5, 4, 5);  // Bottom right
+
+gtk_table_attach_defaults (GTK_TABLE (setting_table), action_maptoclipboard_button,      3, 4, 4, 5);  // Vertical Column
+
 
     // Attach mouse hover info area to bottom of main vbox (below table)
     gtk_box_pack_start (GTK_BOX (main_vbox), mouse_hover_frame, FALSE, FALSE, 0);
@@ -502,6 +513,9 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
     g_signal_connect_swapped (setting_overlay_tileids_checkbutton, "toggled",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
+
+    g_signal_connect (action_maptoclipboard_button, "clicked",
+                      G_CALLBACK (on_action_maptoclipboard_button_clicked), NULL);
 }
 
 
@@ -582,6 +596,10 @@ static void on_setting_finalbpp_combo_changed(GtkComboBox *combo, gpointer callb
     info_display_update();
 }
 
+
+static void on_action_maptoclipboard_button_clicked(GtkButton * button, gpointer callback_data) {
+    tilemap_copy_map_to_clipboard();
+}
 
 
 
@@ -919,6 +937,8 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
 
 static void info_display_update() {
 
+    // TODO: Split out to new file, return strings
+
     tile_map_data * p_map;
     tile_set_data * p_tile_set;
 
@@ -944,7 +964,7 @@ static void info_display_update() {
 
 
         // Use u8 for tilemap array when possible, otherwise u16
-        if ((p_tile_set->tile_count > 255) || (p_map->width_in_tiles > 255) || (p_map->height_in_tiles > 255))
+        if (p_tile_set->tile_count > 255) // || (p_map->width_in_tiles > 255) || (p_map->height_in_tiles > 255))
             tilemap_storage_size = sizeof(uint16_t);
         else
             tilemap_storage_size = sizeof(uint8_t);
@@ -993,6 +1013,41 @@ static void info_display_update() {
     else gtk_label_set_markup(GTK_LABEL(tile_info_display),
              g_markup_printf_escaped("<b>Tile Info</b>\n\n** No tiles available **\n ► Check tile sizing ◄" ));
 
+}
+
+
+#define TILEMAP_MAX_STR 100000
+
+static void tilemap_copy_map_to_clipboard() {
+
+    tile_map_data * p_map;
+    tile_set_data * p_tile_set;
+
+    GtkClipboard *clipboard;
+
+    char            map_text_str[TILEMAP_MAX_STR];
+    uint32_t        map_text_len;
+
+
+    if (tilemap_needs_recalc == FALSE) {
+
+        p_map      = tilemap_get_map();
+        p_tile_set = tilemap_get_tile_set();
+
+        map_text_len = tilemap_export_c_source_to_string(map_text_str,
+                                                         TILEMAP_MAX_STR,
+                                                         p_map,
+                                                         p_tile_set);
+
+        if (map_text_len) {
+            // Get a handle to the given clipboard. You can also ask for
+            // GDK_SELECTION_PRIMARY (the X "primary selection") or
+            // GDK_SELECTION_SECONDARY.
+            GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
+
+            gtk_clipboard_set_text(clipboard, map_text_str, map_text_len);
+        }
+    }
 }
 
 
