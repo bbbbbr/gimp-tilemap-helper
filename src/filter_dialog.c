@@ -1010,8 +1010,16 @@ static void info_display_update() {
                  + ((p_map->width_in_tiles * p_map->height_in_tiles) * tilemap_storage_size)
                  ));
     } // end: if (tilemap_needs_recalc == FALSE) {
-    else gtk_label_set_markup(GTK_LABEL(tile_info_display),
-             g_markup_printf_escaped("<b>Tile Info</b>\n\n** No tiles available **\n ► Check tile sizing ◄" ));
+    else {
+        gtk_label_set_markup(GTK_LABEL(tile_info_display),
+            g_markup_printf_escaped("<b>Tile Info</b>\n\n** No tiles available **\n ► Check tile sizing ◄" ));
+
+        // Padding at the end of the printout to keep widget text height constant
+        gtk_label_set_markup(GTK_LABEL(memory_info_display),
+            g_markup_printf_escaped("<b>Memory Info (in bytes)</b>\n"
+                                    "<span font_family='monospace'>\n\n\n\n\n\n</span>"));
+
+    }
 
 }
 
