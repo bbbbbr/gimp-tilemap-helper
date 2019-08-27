@@ -47,7 +47,9 @@ static void on_action_maptoclipboard_button_clicked(GtkButton *, gpointer);
 static void dialog_settings_apply_to_ui();
 static void dialog_settings_connect_signals(GimpDrawable *);
 
+static void dialog_ui_update();
 static void info_display_update();
+
 static void tilemap_copy_map_to_clipboard();
 
 gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
@@ -593,7 +595,7 @@ static void on_setting_finalbpp_combo_changed(GtkComboBox *combo, gpointer callb
 {
     dialog_settings.finalbpp = atoi(gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(combo)));
 
-    info_display_update();
+    dialog_ui_update();
 }
 
 
@@ -928,11 +930,27 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
     //else
     //     printf("Tilemap: NO Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
 
-    info_display_update();
+    dialog_ui_update();
 
 }
 
 
+static void dialog_ui_update() {
+
+    if (tilemap_needs_recalc == FALSE) {
+
+        // Tilemap calculation succeeded
+        gtk_widget_set_sensitive(action_maptoclipboard_button, TRUE);
+    }
+    else {
+
+        // Tilemap calculation failed
+        gtk_widget_set_sensitive(action_maptoclipboard_button, FALSE);
+    }
+
+    info_display_update();
+
+}
 
 
 static void info_display_update() {
