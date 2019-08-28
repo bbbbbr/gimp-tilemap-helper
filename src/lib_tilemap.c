@@ -8,7 +8,7 @@
 #include "lib_tilemap.h"
 #include "tilemap_tiles.h"
 
-#include "xtea.h"
+#include "hash.h"
 
 #include "benchmark.h"
 

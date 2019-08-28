@@ -1,4 +1,4 @@
-// xtea_hash.h
+// hash.h
 
 #include "stdint.h"
 

@@ -1,13 +1,13 @@
-// xtea_hash.c
+// hash.c
 //
-// A minimal xtea hashing implementation
+// A minimal xtea & others hashing implementation
 
 #include <stdio.h>
-#include "xtea.h"
+#include "hash.h"
 
 
  // Arbitrary key 4 x uint32_t
-static uint32_t key[4] = {0x3326D2BB, 0x86F7E7BB, 0xD1A4C2D5, 0x5C9E8974};
+static uint32_t xtea_key[4] = {0x3326D2BB, 0x86F7E7BB, 0xD1A4C2D5, 0x5C9E8974};
 
 
 // Hash some data using the xtea cryptographic algorithm
@@ -29,10 +29,10 @@ uint64_t xtea_hash(uint32_t u64count, uint32_t * p_source_data)
     uint32_t working_key[4];
 
     // Initialize key
-    working_key[0] = key[0];
-    working_key[1] = key[1];
-    working_key[2] = key[2];
-    working_key[3] = key[3];
+    working_key[0] = xtea_key[0];
+    working_key[1] = xtea_key[1];
+    working_key[2] = xtea_key[2];
+    working_key[3] = xtea_key[3];
 
     // Initialize delta
     delta = 0x9E3779B9;
@@ -94,10 +94,10 @@ uint64_t xtea_hash_u32(uint32_t u32count, uint32_t * p_source_data)
     uint32_t working_key[4];
 
     // Initialize key
-    working_key[0] = key[0];
-    working_key[1] = key[1];
-    working_key[2] = key[2];
-    working_key[3] = key[3];
+    working_key[0] = xtea_key[0];
+    working_key[1] = xtea_key[1];
+    working_key[2] = xtea_key[2];
+    working_key[3] = xtea_key[3];
 
     // Initialize delta
     delta = 0x9E3779B9;
