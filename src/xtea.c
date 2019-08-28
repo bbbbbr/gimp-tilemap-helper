@@ -141,3 +141,6 @@ uint64_t xtea_hash_u32(uint32_t u32count, uint32_t * p_source_data)
     return( (uint64_t)working_key[0] | ((uint64_t)working_key[1] >> 32) );
 }
 
+
+
+
