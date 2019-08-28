@@ -11,6 +11,7 @@
 
 #include "tilemap_overlay.h"
 
+#include "benchmark.h"
 
 
 static uint8_t * p_overlaybuf; // TODO: fixme - probs better to always pass this in than static global
@@ -199,18 +200,27 @@ void render_tilenums (uint8_t * p_buf, uint32_t map_size, uint8_t * map_tilelist
 
 void tilemap_overlay_apply(uint32_t map_size, uint8_t * map_tilelist) {
 
-    printf("Overlay: Drawing now...\n");
+//    printf("Overlay: Drawing now...\n");
 
     if (p_overlaybuf == NULL)
         return;
+
+    printf("Overlay: Start -> Grid  ");
+    benchmark_start();
 
     // Draw the tile grid
     if (grid_enabled)
         render_grid (p_overlaybuf);
 
+    benchmark_elapsed();
+    printf("Overlay: Start -> Tilenums  ");
+
     // Draw the tile numbers
     if (tilenums_enabled)
         render_tilenums ( p_overlaybuf, map_size, map_tilelist);
+
+    benchmark_elapsed();
+
 }
 
 

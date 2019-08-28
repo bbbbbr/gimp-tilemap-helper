@@ -12,6 +12,7 @@
 
 #include "scale.h"
 #include "scaler_nearestneighbor.h"
+#include "benchmark.h"
 
 static scaled_output_info scaled_output;
 static gint scale_factor;
@@ -109,6 +110,10 @@ gint scaled_output_check_reapply_scale() {
     // If either the scale factor changed or there is no valid
     // image rendered at the moment, then signal TRUE to indicate
     // scaling should be re-applied
+    printf("Scale: Check Reapply -> scale cached/new (%d/%d), valid=%d\n",
+            scaled_output.scale_factor, scale_factor,
+            scaled_output.valid_image);
+
     return ((scaled_output.scale_factor != scale_factor) ||
             (scaled_output.valid_image == FALSE));
 }
@@ -120,6 +125,14 @@ gint scaled_output_check_reapply_scale() {
 //
 void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_new)
 {
+
+    printf("Scale: Check Realloc : (%d/%d) (%d/%d) (%d/%d) (%d/%d) (%ld/%d)..  ",
+        scaled_output.bpp          , bpp_new,
+        scaled_output.width        , width_new  * scale_factor,
+        scaled_output.height       , height_new * scale_factor,
+        scaled_output.scale_factor , scale_factor,
+        scaled_output.size_bytes   , scaled_output.width * scaled_output.height * scaled_output.bpp);
+
     if ((scale_factor                != scaled_output.scale_factor) ||
         ((width_new  * scale_factor) != scaled_output.width) ||
         ((height_new * scale_factor) != scaled_output.height) ||
@@ -144,7 +157,11 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
 
         // Invalidate the image
         scaled_output.valid_image = FALSE;
+
+        printf("Reallocated. Valid (scaled image) -> to 0 (false)\n");
     }
+    else
+        printf("No Change\n");
 }
 
 
@@ -180,7 +197,7 @@ void scale_apply(uint8_t * p_srcbuf, uint8_t * p_destbuf,
     if ((p_srcbuf == NULL) || (p_destbuf == NULL))
         return;
 
-printf("Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor, bpp, scaled_output.valid_image);
+printf("Scale: Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor, bpp, scaled_output.valid_image);
 
     if (scale_factor) {
 
@@ -188,18 +205,24 @@ printf("Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor, bpp, 
             case BPP_RGB:
             case BPP_RGBA:
                 // Upscale by a factor of N from source (sp) to dest (dp)
+                printf("Scale: Start -> RGBA  ");
+                benchmark_start();
                 scaler_nearest_bpp_rgb(p_srcbuf, p_destbuf,
                                        width, height,
                                        scale_factor, bpp);
+                benchmark_elapsed();
                 break;
 
             case BPP_INDEXED:
             case BPP_INDEXEDA:
                 // Upscale by a factor of N from source (sp) to dest (dp)
+                printf("Scale: Start -> RGBA  ");
+                benchmark_start();
                 scaler_nearest_bpp_indexed(p_srcbuf, p_destbuf,
                                            width, height,
                                            scale_factor, bpp,
                                            p_cmap_buf, cmap_num_colors);
+                benchmark_elapsed();
                                 break;
         }
 

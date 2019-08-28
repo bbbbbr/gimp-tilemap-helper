@@ -25,6 +25,8 @@
 #include "tilemap_overlay.h"
 #include "tilemap_export.h"
 
+#include "benchmark.h"
+
 
 extern const char PLUG_IN_PROCEDURE[];
 extern const char PLUG_IN_ROLE[];
@@ -618,12 +620,15 @@ static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint 
     // Get current size for scaled preview area
     gtk_widget_get_size_request (preview_scaled, &width_current, &height_current);
 
+    printf("Dialog: Check Window Resize...(%d/%d) (%d/%d)  Resize = ",
+        width_current, (width_new  * scale_factor_new),
+        height_current, (height_new * scale_factor_new));
     // Only resize if the width, height or scaling changed
     if ( (width_current  != (width_new  * scale_factor_new)) ||
          (height_current != (height_new * scale_factor_new)) )
     {
         // TODO: This queues a second redraw event... it seems to work fine. Does it need to be fixed?
-        printf("Check size... Resize applied\n");
+        printf("YES  (applied)\n");
 
         // Resize scaled preview area
         gtk_widget_set_size_request (preview_scaled, width_new * scale_factor_new, height_new * scale_factor_new);
@@ -636,6 +641,8 @@ static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint 
                                        width_new * scale_factor_new,
                                        height_new * scale_factor_new);
     }
+    else
+        printf("NO\n");
 }
 
 
@@ -671,13 +678,12 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     gint         colormap_numcolors = 0;
 
 
-printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
+    printf("Process: Start --> tilemap recalc = %d, scale = %d\n", tilemap_needs_recalc, dialog_settings.scale_factor);
 
     // Apply dialog settings
     tilemap_overlay_set_enables(dialog_settings.overlay_grid_enabled,
                                 dialog_settings.overlay_tileids_enabled);
     scale_factor_set( dialog_settings.scale_factor );
-    printf("Redraw queued at %dx\n", dialog_settings.scale_factor);
 
     // Check for previously rendered output
     scaled_output = scaled_info_get();
@@ -746,6 +752,7 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
         // gimp_drawable_is_rgb()
         // Load color map if needed
         if (gimp_drawable_is_indexed(drawable->drawable_id)) {
+
             // Load the color map and copy it to a working buffer
             p_colormap_buf = gimp_image_get_colormap(image_id, &colormap_numcolors);
 
@@ -758,8 +765,6 @@ printf("tilemap_dialog_processing_run 1 --> tilemap_needs_recalc = %d\n", tilema
 
 
         // ====== CALCULATE TILE MAP & TILES ======
-
-        printf("tilemap_dialog_processing_run 2 --> tilemap_needs_recalc = %d\n", tilemap_needs_recalc);
 
         if (tilemap_needs_recalc) {
             tilemap_calculate(p_srcbuf,
@@ -894,7 +899,7 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
 
     // TODO: FIXME: invalidate model is failing to work if tilemap fails due to excessive tile count/etc -> it's causing multiple pointless recalculations in a row, bad for large images
     if (tilemap_needs_recalc) {
-        printf("Tilemap: Starting Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+        // printf("Tilemap: Starting Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
         status = tilemap_export_process(&app_image,
                                         dialog_settings.tile_width,
                                         dialog_settings.tile_height);
@@ -902,8 +907,6 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
         // TODO: warn/notify on failure (invalid tile size, etc)
 
         if (status) {
-
-            printf("Tilemap Recalc SUCCESS...\n");
 
             // Retrieve the deduplicated map and tile set
             p_map      = tilemap_get_map();
@@ -924,11 +927,11 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
 
             //printf("tilemap:done --> tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
         }
-        //else
-        //    printf("Tilemap: Recalc FAILED: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+        else
+            printf("Tilemap: Recalc -> FAILED: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
     }
-    //else
-    //     printf("Tilemap: NO Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+    else
+         printf("Tilemap: Recalc -> Not Needed: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
 
     dialog_ui_update();
 
