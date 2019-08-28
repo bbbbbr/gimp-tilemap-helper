@@ -131,11 +131,12 @@ benchmark_slot_start(0);
                                           img_buf_offset);
 benchmark_slot_update(0);
 
-benchmark_slot_start(1);
+
+benchmark_slot_start(9);
                 // TODO! Don't hash transparent pixels? Have to overwrite second byte?
-                tile.hash = xtea_hash_u32((tile.raw_size_bytes + tile_size_bytes_hash_padding) / sizeof(uint32_t),
-                                          (uint32_t *)tile.p_img_raw);
-benchmark_slot_update(1);
+                tile.hash = MurmurHash2( tile.p_img_raw, tile.raw_size_bytes, 0xF0A5); // len is u8count
+benchmark_slot_update(9);
+
 
 benchmark_slot_start(2);
                 // TODO: search could be optimized with a hash array
