@@ -32,7 +32,7 @@ extern const char PLUG_IN_PROCEDURE[];
 extern const char PLUG_IN_ROLE[];
 extern const char PLUG_IN_BINARY[];
 
-static void dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
+static int dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
 static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
 // static void on_setting_scaler_combo_changed (GtkComboBox *, gpointer);
 
@@ -613,7 +613,7 @@ static void on_action_maptoclipboard_button_clicked(GtkButton * button, gpointer
 // Called from pixel_art_scalers_run() which is used for
 // previewing and final rendering of the selected scaler mode
 //
-static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint width_new, gint height_new, gint scale_factor_new)
+static int dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint width_new, gint height_new, gint scale_factor_new)
 {
     gint width_current, height_current;
 
@@ -628,7 +628,7 @@ static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint 
          (height_current != (height_new * scale_factor_new)) )
     {
         // TODO: This queues a second redraw event... it seems to work fine. Does it need to be fixed?
-        printf("YES  (applied)\n");
+        printf("YES  (applied, queueing another redraw pass...)\n");
 
         // Resize scaled preview area
         gtk_widget_set_size_request (preview_scaled, width_new * scale_factor_new, height_new * scale_factor_new);
@@ -640,12 +640,35 @@ static void dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint 
         gimp_preview_area_set_max_size(GIMP_PREVIEW_AREA (preview_scaled),
                                        width_new * scale_factor_new,
                                        height_new * scale_factor_new);
+        // Yes, a redraw was queued
+        return TRUE;
     }
     else
         printf("NO\n");
+
+    // No redraw queued
+    return FALSE;
 }
 
 
+
+int dialog_calc_dest_bpp(int src_bpp) {
+
+/*
+    // Force all (scaled / preview / overlay) output to 4BPP RGBA for speed
+    return BPP_RGBA;
+*/
+    // If image is INDEXED or INDEXED ALPHA
+    // Then promote dest image:
+    // * 1 bpp -> RGB 3 bpp,
+    // * 2 bpp (alpha) -> RGBA 4bpp
+    if (src_bpp <= 2)
+        return (3 + (src_bpp - 1));
+    else
+        return src_bpp;
+
+
+}
 
 /*******************************************************/
 /*   Create the dialog preview image or output layer   */
@@ -688,6 +711,10 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     // Check for previously rendered output
     scaled_output = scaled_info_get();
 
+    // Get bit depth and alpha mask status
+    src_bpp = drawable->bpp;
+    dest_bpp = dialog_calc_dest_bpp(src_bpp);
+
     // TODO: Always use the entire image?
 
     // Get the working image area for either the preview sub-window or the entire image
@@ -699,7 +726,16 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
             return;
         }
 
-        dialog_scaled_preview_check_resize( preview_scaled, width, height, dialog_settings.scale_factor);
+        // Check to see if the window size has changed or needs to change
+        //
+        // If the check triggered a resize then a second redraw will be queued, and
+        // so this should exit immediately.--> The rest of the processing and
+        // drawing will happen on the second pass
+        if (dialog_scaled_preview_check_resize( preview_scaled,
+                                                width, height,
+                                                dialog_settings.scale_factor))
+            return;
+
     } else if (! gimp_drawable_mask_intersect (drawable->drawable_id,
                                              &x, &y, &width, &height)) {
         // TODO: DO STUFF WHEN CALLED AFTER DIALOG CLOSED
@@ -707,16 +743,6 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     }
 
 
-    // Get bit depth and alpha mask status
-    src_bpp = drawable->bpp;
-
-    // TODO: move this to a function?
-    // If image is INDEXED or INDEXED ALPHA
-    // Then promote dest image: 1 bpp -> RGB 3 bpp, 2 bpp (alpha) -> RGBA 4bpp
-    if (src_bpp <= 2)
-        dest_bpp = (3 + (src_bpp - 1));
-    else
-        dest_bpp = src_bpp;
 
 
     // Allocate output buffer for upscaled image
@@ -806,11 +832,13 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     // Filter is done, apply the update
     if (preview) {
 
-
+        printf("PAINT: ? (valid=%d)..  ", scaled_output->valid_image);
         // Redraw the scaled preview if it's available (it ought to be at this point)
         if ( (scaled_output->p_scaledbuf != NULL) &&
              (scaled_output->valid_image == TRUE) ) {
 
+            printf("YES");
+            benchmark_start();
 
             // Select drawable render type based on BPP of upscaled image
             if      (dest_bpp == BPP_RGB)  drawable_type = GIMP_RGB_IMAGE;
@@ -819,6 +847,7 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 
             // TODO: optional use gimp_preview_area_blend() to mix overlay and source image?
             // TODO: optional: // gimp_preview_area_set_colormap ()
+
             gimp_preview_area_draw (GIMP_PREVIEW_AREA (preview_scaled),
                                     0, 0,                  // x,y
                                     scaled_output->width,  // width, height
@@ -826,7 +855,9 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
                                     drawable_type,                              // GimpImageType (scaled image) // gimp_drawable_type (drawable->drawable_id),
                                     (guchar *) scaled_output->p_scaledbuf,      // Source buffer
                                     scaled_output->width * scaled_output->bpp); // Row-stride
+            benchmark_elapsed();
         }
+        else printf("NO\n");
 
         // Update the info display area
         // update_text_readout();
@@ -843,6 +874,7 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     }
 
 
+    printf("PROCESS: === END ===\n\n");
     // Free the working buffer
     if (p_srcbuf)
         g_free (p_srcbuf);
