@@ -30,7 +30,8 @@ void font_render_digit(int x, int y, uint8_t digit, uint8_t * p_buf );
 void pixel_draw_contrast(int x, int y, uint8_t * p_buf);
 void pixel_draw_color(int x, int y, uint8_t * p_buf, uint8_t r, uint8_t g, uint8_t b);
 
-void render_grid (uint8_t * p_buf);
+void render_grid_rgb(uint8_t * p_buf);
+void render_grid_rgba(uint32_t * p_buf);
 
 // TODO: ? better to create two buffers and overlay the text one using gimp_preview_area_mask() ?
 
@@ -124,9 +125,9 @@ void pixel_draw_contrast(int x, int y, uint8_t * p_buf) {
         else {
 
             // Set pixel to new contrasted value
-            *p_buf++ = *p_buf + 128; // Red
-            *p_buf++ = *p_buf + 128; // Green
-            *p_buf++ = *p_buf + 128; // Blue
+            *p_buf++ |= 0x80; // = *p_buf + 128; // Red
+            *p_buf++ |= 0x80; // = *p_buf + 128; // Green
+            *p_buf++ |= 0x80; // = *p_buf + 128; // Blue
         }
 
         // handle opacity if needed
@@ -136,7 +137,7 @@ void pixel_draw_contrast(int x, int y, uint8_t * p_buf) {
 }
 
 
-// Draw a pixel by semi-inverting the current pixel value (roll it 128 bytes upward + wraparound)
+// Draw a pixel with a given color
 // Expects BPP to only = 3 or 4
 void pixel_draw_color(int x, int y, uint8_t * p_buf, uint8_t r, uint8_t g, uint8_t b) {
 
@@ -158,18 +159,106 @@ void pixel_draw_color(int x, int y, uint8_t * p_buf, uint8_t r, uint8_t g, uint8
 }
 
 
-void render_grid (uint8_t * p_buf) {
+// Render a tile spaced grid of semi-inverted pixels in the image buffer
+void render_grid_rgb(uint8_t * p_buf) {
 
-    int x,y;
+    uint8_t * p_pix;
+    int       x,y;
+    uint32_t  row_gap_u8, col_increment_u8;
 
-    // Draw a grid using the tile size
-    for (y=0; y < height; y++) {
+    // Pre-calculate the buffer distance from the
+    // end of one grid-line to the start of the next
+    row_gap_u8       = (width * (tile_height - 1)) * bpp;
+    col_increment_u8 = (width * bpp) - bpp;
+
+    // Draw horizontal grid lines using the tile size
+    p_pix = p_buf;
+
+    for (y=0; y < height; y += tile_height) {
         for (x=0; x < width; x++) {
-            if (((x % tile_width) == 0) ||
-                ((y % tile_height) == 0)) {
 
-                pixel_draw_contrast(x, y, p_buf);
-            }
+            // Semi-invert the pixel
+            *p_pix++ ^= 0x80; // R
+            *p_pix++ ^= 0x80; // G
+            *p_pix++ ^= 0x80; // B
+        }
+        // Advance image buffer to next horizontal grid line
+        p_pix += row_gap_u8;
+    }
+
+
+    // Draw veritcal grid lines using the tile size
+    p_pix = p_buf;
+
+    for (x=0; x < width; x += tile_width) {
+
+        p_pix = p_buf + (x * bpp);
+
+        for (y=0; y < height; y++) {
+
+            // Semi-invert the pixel
+            *p_pix++ ^= 0x80; // R
+            *p_pix++ ^= 0x80; // G
+            *p_pix++ ^= 0x80; // B
+
+            // Move down by one pixel (row)
+            p_pix += col_increment_u8;
+        }
+    }
+}
+
+
+// Render a tile spaced grid of semi-inverted pixels in the image buffer
+void render_grid_rgba(uint32_t * p_buf) {
+
+    uint32_t * p_pix;
+    int        x,y;
+    uint32_t   row_gap_u32, col_increment_u32;
+
+    // Pre-calculate the buffer distance from the
+    // end of one grid-line to the start of the next
+    row_gap_u32       = width * (tile_height - 1);
+    col_increment_u32 = width;
+
+    // Draw horizontal grid lines using the tile size
+    p_pix = p_buf;
+
+    for (y=0; y < height; y += tile_height) {
+        for (x=0; x < width; x++) {
+
+            // If the pixel is mostly visible, semi-invert it
+            // If it's mostly transparent then set it to red + fully visible
+            if (*p_pix & 0xC0000000)
+                *p_pix ^= 0x00808080;
+            else
+                *p_pix = 0xFF0000FF;
+
+            // Move right by one pixel (col)
+            p_pix++;
+        }
+        // Advance image buffer to next horizontal grid line
+        p_pix += row_gap_u32;
+    }
+
+
+    // Draw veritcal grid lines using the tile size
+    p_pix = p_buf;
+
+    for (x=0; x < width; x += tile_width) {
+
+        p_pix = p_buf + x;
+
+        for (y=0; y < height; y++) {
+
+            // If the pixel is mostly visible, semi-invert it
+            // If it's mostly transparent then set it to red + fully visible
+            if (*p_pix & 0xC0000000)
+                *p_pix ^= 0x00808080;
+            else
+                *p_pix = 0xFF0000FF;
+
+            // Move down by one pixel (row)
+            p_pix += col_increment_u32;
         }
     }
 }
@@ -210,7 +299,10 @@ void tilemap_overlay_apply(uint32_t map_size, uint8_t * map_tilelist) {
 
     // Draw the tile grid
     if (grid_enabled)
-        render_grid (p_overlaybuf);
+        if (bpp == 3)
+            render_grid_rgb (p_overlaybuf);
+        else if (bpp == 4)
+            render_grid_rgba ((uint32_t * )p_overlaybuf);
 
     benchmark_elapsed();
     printf("Overlay: Start -> Tilenums  ");
