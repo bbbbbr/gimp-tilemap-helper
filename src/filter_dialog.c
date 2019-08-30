@@ -754,9 +754,10 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     if ((scaled_output_check_reapply_scale()) || (tilemap_needs_recalc)) {
 
         // ====== GET THE SOURCE IMAGE ======
-        // Allocate a working buffer to copy the source image into
-        srcbuf_size = width * height * src_bpp;
-        p_srcbuf = (uint8_t *) g_new (guint8, srcbuf_size);
+        // Allocate a working buffer to copy the source image into - always RGBA 4BPP
+        // 32 bit to ensure alignment, divide size since it's in BYTES
+        srcbuf_size = width * height * BYTE_SIZE_RGBA_4BPP;
+        p_srcbuf = (uint8_t *) g_new (guint32, srcbuf_size / BYTE_SIZE_RGBA_4BPP);
 
 
         // FALSE, FALSE : region will be used to read the actual drawable data

@@ -23,11 +23,6 @@ static const char FALSE = 0;
 
 
 // TODO: should this always operate in RGBA so that overlay is easier to do?
-// convert indexed/grayscale -> RGBA
-// Have to pass in cmap
-
-
-
 
 
 // For RGB and RGB+ALPHA
@@ -41,8 +36,8 @@ void scaler_nearest_bpp_rgb(uint8_t * sp, uint8_t * dp,
                        int src_bpp)
 {
     int       x, y, sx, sb;
-    uint8_t * p_dst_pixel;
-    long      line_width_scaled_bpp;
+    uint8_t   src_R, src_G, src_B;
+    uint32_t  line_width_scaled_bpp;
 
     if (scale_factor == 1) {
         // Quick 1:1 copy if scale factor is 1x
@@ -55,36 +50,22 @@ void scaler_nearest_bpp_rgb(uint8_t * sp, uint8_t * dp,
             // Copy each line from the source image
             for (x=0; x < Xres; x++) {
 
-                // Copy each u8 byte of the pixel to the dest buffer
-                for (sb=0; sb < src_bpp; sb++) {
+                // Copy each RGB values for each pixel
+                src_R = *sp++;
+                src_G = *sp++;
+                src_B = *sp++;
 
-                    // Temp copy of dest pointer to iterate through
-                    // each pixel's multiple bytes
-                    p_dst_pixel = dp;
+                // Make N (scale factor) copies of pixel to dest pointer from source values
+                for (sx=0; sx < scale_factor; sx++) {
 
-                    // Copy N (scale factor) pixels from source pixel
-                    for (sx=0; sx < scale_factor; sx++) {
-
-                        // Copy pixel from source
-                        *p_dst_pixel = *sp;
-                        // Move to next pixel using bpp size
-                        p_dst_pixel += src_bpp;
-
-                    }
-
-                    // Move to next byte in pixel
-                    dp++;
-                    sp++;
-
+                    // Copy pixel from source
+                    *dp++ = src_R;
+                    *dp++ = src_G;
+                    *dp++ = src_B;
                 }
-
-                // Advance dest pointer to next upscaled pixel destination
-                // (1x copy of pixel -> n+ upscaled copy/ies -> next pixel)
-                // (it won't be at next pixel since p_dst_pixel is the pointer
-                //  used to do the writes at the upscaled locations above)
-                dp += ((scale_factor -1)* src_bpp);
             }
 
+            // NOTE: This benchmarks faster than calling one big memcpy with all the lines at once...
             // Duplicate the preceding line (at scaled size) N times if needed
             for (sx=0; sx < (scale_factor -1); sx++) {
                 // memcopy operates on 8 bits
@@ -98,6 +79,55 @@ void scaler_nearest_bpp_rgb(uint8_t * sp, uint8_t * dp,
 
 
 
+// For RGB and RGB+ALPHA
+//
+// Upscale by a factor of N from source (sp) to dest (dp)
+// NOTE: Expects *dp to have a buffer size = width * height * (RGB or RGBA / 3 or 4 bytes)
+//
+void scaler_nearest_bpp_rgba(uint32_t * sp, uint32_t * dp,
+                           int Xres, int Yres,
+                           int scale_factor,
+                           int src_bpp)
+{
+    int       x, y, sx;
+    uint32_t  line_len_scaled_u8;
+    uint32_t  line_len_scaled_u32;
+
+    if (scale_factor == 1) {
+        // Quick 1:1 copy if scale factor is 1x
+        memcpy(dp, sp, Xres * Yres * src_bpp);
+    }
+    else {
+        // Pre-calculate length of upscaled scanline
+        line_len_scaled_u32    = Xres * scale_factor;
+        line_len_scaled_u8    = line_len_scaled_u32 * src_bpp;
+
+        for (y=0; y < Yres; y++) {
+            // Copy each line from the source image
+            for (x=0; x < Xres; x++) {
+
+                // Make N (scale factor) copies of pixel to dest pointer from source values
+                for (sx=0; sx < scale_factor; sx++) {
+
+                    // Copy pixel from source
+                    *dp++ = *sp;
+                }
+                sp++;
+            }
+
+            // NOTE: This benchmarks faster than calling one big memcpy with all the lines at once...
+            // Duplicate the preceding line (at scaled size) N times if needed
+            for (sx=0; sx < (scale_factor -1); sx++) {
+                // memcopy operates on 8 bits
+                memcpy(dp, (dp - line_len_scaled_u32), line_len_scaled_u8);
+                dp+= line_len_scaled_u32;
+            }
+
+        }
+    }
+}
+
+
 
 
 // For INDEXED+ALPHA (BPP == 1 or == 2)
@@ -105,7 +135,7 @@ void scaler_nearest_bpp_rgb(uint8_t * sp, uint8_t * dp,
 // Upscale by a factor of N from source (sp) to dest (dp)
 // NOTE: Promotes image to RGB/A for display purposes
 //       Expects *dp to have a buffer size = width * height * (RGB or RGBA / 3 or 4 bytes)
-//
+//       Expects a color map to be passed in
 void scaler_nearest_bpp_indexed(uint8_t * sp, uint8_t * dp,
                        int Xres, int Yres,
                        int scale_factor,
@@ -167,4 +197,5 @@ void scaler_nearest_bpp_indexed(uint8_t * sp, uint8_t * dp,
 
     }
 }
+
 

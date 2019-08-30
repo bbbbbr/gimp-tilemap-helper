@@ -126,6 +126,8 @@ gint scaled_output_check_reapply_scale() {
 void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_new)
 {
 
+    glong scaledbuf_size = 0;
+
     printf("Scale: Check Realloc : (%d/%d) (%d/%d) (%d/%d) (%d/%d) (%ld/%d)..  ",
         scaled_output.bpp          , bpp_new,
         scaled_output.width        , width_new  * scale_factor,
@@ -152,8 +154,12 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
             scaled_output.p_scaledbuf = NULL;
         }
 
+        // Allocate a working buffer to copy the source image into - always RGBA 4BPP
         // 32 bit to ensure alignment, divide size since it's in BYTES
-        scaled_output.p_scaledbuf = (uint8_t *) g_new (guint8, scaled_output.size_bytes);
+        // * Instead of scaled_output.size_bytes (may be 3 or 4 bpp)... always use 4BPP
+        scaledbuf_size = scaled_output.width * scaled_output.height * BYTE_SIZE_RGBA_4BPP;
+        scaled_output.p_scaledbuf = (uint8_t *) g_new (guint32, scaledbuf_size);
+        // scaled_output.p_scaledbuf = (uint8_t *) g_new (guint8, scaled_output.size_bytes);
 
         // Invalidate the image
         scaled_output.valid_image = FALSE;
@@ -203,11 +209,20 @@ printf("Scale: Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor
 
         switch(bpp) {
             case BPP_RGB:
+                // Upscale by a factor of N from source (sp) to dest (dp)
+                printf("Scale: Start -> RGB  ");
+                benchmark_start();
+                scaler_nearest_bpp_rgb(p_srcbuf, p_destbuf,
+                                       width, height,
+                                       scale_factor, bpp);
+                benchmark_elapsed();
+                break;
+
             case BPP_RGBA:
                 // Upscale by a factor of N from source (sp) to dest (dp)
                 printf("Scale: Start -> RGBA  ");
                 benchmark_start();
-                scaler_nearest_bpp_rgb(p_srcbuf, p_destbuf,
+                scaler_nearest_bpp_rgba((uint32_t*)p_srcbuf, (uint32_t*)p_destbuf,
                                        width, height,
                                        scale_factor, bpp);
                 benchmark_elapsed();
@@ -216,7 +231,7 @@ printf("Scale: Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor
             case BPP_INDEXED:
             case BPP_INDEXEDA:
                 // Upscale by a factor of N from source (sp) to dest (dp)
-                printf("Scale: Start -> RGBA  ");
+                printf("Scale: Start -> INDEXED/A  ");
                 benchmark_start();
                 scaler_nearest_bpp_indexed(p_srcbuf, p_destbuf,
                                            width, height,
@@ -260,3 +275,4 @@ void scale_init(void) {
     // Now set the default scaler
     scale_factor = SCALE_FACTOR_DEFAULT;
  }
+
