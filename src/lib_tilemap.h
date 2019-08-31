@@ -67,6 +67,10 @@
     } tile_set_data;
 
 
+    void tilemap_recalc_invalidate(void);
+    void tilemap_recalc_clear_flag(void);
+    int tilemap_recalc_needed(void);
+
     void           tilemap_free_resources();
     static int32_t check_dimensions_valid(image_data * p_src_img, int tile_width, int tile_height);
     unsigned char  process_tiles(image_data * p_src_img);

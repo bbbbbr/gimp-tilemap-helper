@@ -57,7 +57,6 @@ static void tilemap_copy_map_to_clipboard();
 gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
 
 static void tilemap_calculate(uint8_t *, gint, gint, gint);
-static void tilemap_invalidate();
 
 static void tilemap_render_overlay();
 static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc);
@@ -100,8 +99,6 @@ static PluginTileMapVals dialog_settings;
 // TODO: move these out of global scope?
 static image_data      app_image;
 static color_data      app_colors;
-
-static gint            tilemap_needs_recalc;
 
 static gint32          image_id;
 
@@ -382,7 +379,9 @@ gtk_table_attach_defaults (GTK_TABLE (setting_table), action_maptoclipboard_butt
     // ======== SHOW THE DIALOG AND RUN IT ========
 
     // TODO: is this still needed?
-    tilemap_invalidate();
+    scaled_output_invalidate();
+    tilemap_recalc_invalidate();
+    overlay_redraw_invalidate();
 
 
     gtk_widget_show (dialog);
@@ -571,10 +570,10 @@ static void on_setting_tilesize_spinbutton_changed(GtkSpinButton * spinbutton, g
 
     switch (callback_data) {
         case WIDGET_TILESIZE_WIDTH:  dialog_settings.tile_width  = gtk_spin_button_get_value_as_int(spinbutton);
-            tilemap_invalidate();
+            tilemap_recalc_invalidate();
             break;
         case WIDGET_TILESIZE_HEIGHT: dialog_settings.tile_height = gtk_spin_button_get_value_as_int(spinbutton);
-            tilemap_invalidate();
+            tilemap_recalc_invalidate();
             break;
     }
 }
@@ -589,7 +588,8 @@ static void on_setting_overlay_checkbutton_changed(GtkToggleButton * p_togglebut
 //                                dialog_settings.overlay_tileids_enabled);
 
     // Request a redraw of the scaled preview + overlay
-    scaled_output_invalidate();
+    // scaled_output_invalidate();
+    overlay_redraw_invalidate();
 }
 
 
@@ -701,7 +701,7 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     gint         colormap_numcolors = 0;
 
 
-    printf("Process: Start --> tilemap recalc = %d, scale = %d\n", tilemap_needs_recalc, dialog_settings.scale_factor);
+    printf("Process: Start --> tilemap recalc = %d, scale = %d\n", tilemap_recalc_needed(), dialog_settings.scale_factor);
 
     // Apply dialog settings
     tilemap_overlay_set_enables(dialog_settings.overlay_grid_enabled,
@@ -750,8 +750,12 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     scaled_output_check_reallocate(dest_bpp, width, height);
 
 
-    // TODO: switch this to an invalidate model like tilemap_needs_recalc? - then above could be merged in and nested
-    if ((scaled_output_check_reapply_scale()) || (tilemap_needs_recalc)) {
+    // TODO: switch this to an invalidate model like tilemap_recalc_needed()? - then above could be merged in and nested
+    if (scaled_output_check_reapply_scale() || tilemap_recalc_needed()) {
+
+        // TODO: OPTIMIZE: since the source image will get re-used often,
+        // consider making the buffer/data global and caching it
+        // dialog_source_image_load();
 
         // ====== GET THE SOURCE IMAGE ======
         // Allocate a working buffer to copy the source image into - always RGBA 4BPP
@@ -791,34 +795,51 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
             colormap_numcolors = 0;
 
 
-        // ====== CALCULATE TILE MAP & TILES ======
-
-        if (tilemap_needs_recalc) {
-            tilemap_calculate(p_srcbuf,
-                              src_bpp,
-                              width, height);
-
-            tilemap_color_data_set(&color_map);
-
-        }
-
-
-        // ====== APPLY THE SCALER ======
-        // NOTE: Promotes INDEXED/ALPHA 1/2 BPP to RGB/ALPHA 3/4 BPP
-        //       Expects p_destbuf to be allocated with 3/4 BPP RGB/A number of bytes, not 1/2 if INDEXED
-        //
-        // TODO: FIXME For now, every time the tile size is changed, re-scale the image
-//        if (scaled_output_check_reapply_scale()) {
-        {
+        if (scaled_output_check_reapply_scale()) {
+            // ====== APPLY THE SCALER ======
+            // NOTE: Promotes INDEXED/ALPHA 1/2 BPP to RGB/ALPHA 3/4 BPP
+            //       Expects p_destbuf to be allocated with 3/4 BPP RGB/A number of bytes, not 1/2 if INDEXED
             scale_apply(p_srcbuf,
                         scaled_output->p_scaledbuf,
                         src_bpp,
                         width, height,
                         p_colormap_buf, colormap_numcolors);
 
+            // Queue a tile map overlay redraw since the scaled output changed
+            overlay_redraw_invalidate();
+        }
+
+        // ====== CALCULATE TILE MAP & TILES ======
+        if (tilemap_recalc_needed()) {
+            tilemap_calculate(p_srcbuf,
+                              src_bpp,
+                              width, height);
+
+            tilemap_color_data_set(&color_map);
+
+            // Queue a tile map overlay redraw since the tile map info changed
+            overlay_redraw_invalidate();
+        }
+    }
+
+    // ====== DRAW OVERLAY FROM TILE MAP & TILES ======
+    if (overlay_redraw_needed()) {
+
+        printf("Overlay: Clear buffer...");
+        benchmark_start();
+        // Copy the upscaled tile buffer to the overlay buffer
+        // This allows redrawing the overlay without having to re-scale
+        memcpy(scaled_output->p_overlaybuf,
+               scaled_output->p_scaledbuf,
+               scaled_output->width * scaled_output->height * dest_bpp);
+        benchmark_elapsed();
+
+        // Only redraw if there is a valid tilemap to work from, otherise just clear it
+        if ( !tilemap_recalc_needed() ) {
             // Note: Drawing of individual overlays controlled via tilemap_overlay_set_enables()
             // For now, every time we change the tile size, we have to re-scale the image
-            tilemap_overlay_setparams(scaled_output->p_scaledbuf,
+            tilemap_overlay_setparams(//scaled_output->p_scaledbuf,
+                                      scaled_output->p_overlaybuf,
                                       dest_bpp,
                                       scaled_output->width,
                                       scaled_output->height,
@@ -854,8 +875,29 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
                                     scaled_output->width,  // width, height
                                     scaled_output->height,
                                     drawable_type,                              // GimpImageType (scaled image) // gimp_drawable_type (drawable->drawable_id),
-                                    (guchar *) scaled_output->p_scaledbuf,      // Source buffer
+                                    (guchar *) scaled_output->p_overlaybuf,     // Source buffer
+                                    //(guchar *) scaled_output->p_scaledbuf,      // Source buffer
                                     scaled_output->width * scaled_output->bpp); // Row-stride
+
+            benchmark_elapsed();
+
+            printf("PAINT: Blended...");
+            benchmark_start();
+/*
+            gimp_preview_area_blend(
+                    GIMP_PREVIEW_AREA (preview_scaled),
+                    0, 0,                  // x,y
+                    scaled_output->width,  // width, height
+                    scaled_output->height,
+                    drawable_type,                              // GimpImageType (scaled image) // gimp_drawable_type (drawable->drawable_id),
+
+                    (guchar *) scaled_output->p_scaledbuf,      // Source buffer
+                    scaled_output->width * scaled_output->bpp, // Row-stride
+
+                    (guchar *) scaled_output->p_scaledbuf,      // Source buffer
+                    scaled_output->width * scaled_output->bpp, // Row-stride
+                    255);            // Opacity
+*/
             benchmark_elapsed();
         }
         else printf("NO\n");
@@ -880,14 +922,6 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     if (p_srcbuf)
         g_free (p_srcbuf);
 }
-
-
-
-
-static void tilemap_invalidate() {
-    tilemap_needs_recalc = TRUE;
-}
-
 
 
 
@@ -916,7 +950,7 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
         (p_map->tile_width    != dialog_settings.tile_width) ||
         (p_map->tile_height   != dialog_settings.tile_height))
     {
-        tilemap_needs_recalc = TRUE;
+        tilemap_recalc_needed() = TRUE;
         printf("Tilemap Recalc check = True\n");
     }
 */
@@ -931,8 +965,8 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
 
 
     // TODO: FIXME: invalidate model is failing to work if tilemap fails due to excessive tile count/etc -> it's causing multiple pointless recalculations in a row, bad for large images
-    if (tilemap_needs_recalc) {
-        // printf("Tilemap: Starting Recalc: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+    if (tilemap_recalc_needed) {
+        // printf("Tilemap: Starting Recalc: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
         status = tilemap_export_process(&app_image,
                                         dialog_settings.tile_width,
                                         dialog_settings.tile_height);
@@ -956,15 +990,15 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
             p_map->size
 
             */
-            tilemap_needs_recalc = FALSE;
+            // tilemap_recalc_needed() = FALSE;
 
-            //printf("tilemap:done --> tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+            //printf("tilemap:done --> tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
         }
         else
-            printf("Tilemap: Recalc -> FAILED: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+            printf("Tilemap: Recalc -> FAILED: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
     }
     else
-         printf("Tilemap: Recalc -> Not Needed: tilemap_needs_recalc = %d\n\n", tilemap_needs_recalc);
+         printf("Tilemap: Recalc -> Not Needed: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
 
     dialog_ui_update();
 
@@ -973,19 +1007,18 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
 
 static void dialog_ui_update() {
 
-    if (tilemap_needs_recalc == FALSE) {
+    if (tilemap_recalc_needed()) {
 
-        // Tilemap calculation succeeded
-        gtk_widget_set_sensitive(action_maptoclipboard_button, TRUE);
+        // Tilemap calculation failed or not finished, disable copy-to-clipboard button
+        gtk_widget_set_sensitive(action_maptoclipboard_button, FALSE);
     }
     else {
 
-        // Tilemap calculation failed
-        gtk_widget_set_sensitive(action_maptoclipboard_button, FALSE);
+        // Tilemap calculation succeeded, enable copy-to-clipboard button
+        gtk_widget_set_sensitive(action_maptoclipboard_button, TRUE);
     }
 
     info_display_update();
-
 }
 
 
@@ -1002,7 +1035,7 @@ static void info_display_update() {
     // TODO: FIXME: implement better handling for valid map data (tilemap_is_valid()?)
     // TODO: maybe display "no valid data" when no valid tile map calculated (or maybe not, since it's less startling when comparing tile sizes)
 
-    if (tilemap_needs_recalc == FALSE) {
+    if (tilemap_recalc_needed() == FALSE) {
 
         p_map      = tilemap_get_map();
         p_tile_set = tilemap_get_tile_set();
@@ -1063,7 +1096,7 @@ static void info_display_update() {
                 (((p_map->tile_width * p_map->tile_height) * final_bitsperpixel * p_tile_set->tile_count) / 8)  // / 8 bits per byte
                  + ((p_map->width_in_tiles * p_map->height_in_tiles) * tilemap_storage_size)
                  ));
-    } // end: if (tilemap_needs_recalc == FALSE) {
+    } // end: if (tilemap_recalc_needed() == FALSE) {
     else {
         gtk_label_set_markup(GTK_LABEL(tile_info_display),
             g_markup_printf_escaped("<b>Tile Info</b>\n\n** No tiles available **\n ► Check tile sizing ◄" ));
@@ -1091,7 +1124,7 @@ static void tilemap_copy_map_to_clipboard() {
     uint32_t        map_text_len;
 
 
-    if (tilemap_needs_recalc == FALSE) {
+    if (tilemap_recalc_needed() == FALSE) {
 
         p_map      = tilemap_get_map();
         p_tile_set = tilemap_get_tile_set();
@@ -1147,7 +1180,7 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
     tile_set_data * p_tile_set;
 
     // Only display if there's valid data available (no recalc queued)
-    if (!((scaled_output_check_reapply_scale()) || (tilemap_needs_recalc))) {
+    if (!(scaled_output_check_reapply_scale() || tilemap_recalc_needed() )) {
 
             p_map      = tilemap_get_map();
             p_tile_set = tilemap_get_tile_set();

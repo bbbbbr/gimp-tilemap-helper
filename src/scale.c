@@ -94,6 +94,8 @@ scaled_output_info * scaled_info_get(void) {
 // Used to clear output caching and trigger a redraw
 //
 void scaled_output_invalidate() {
+
+    printf("Scale: Invalidated\n");
     scaled_output.valid_image = FALSE;
 }
 
@@ -117,9 +119,11 @@ gint scaled_output_check_reapply_scale() {
 
     if ((scaled_output.scale_factor != scale_factor) ||
         (scaled_output.valid_image == FALSE)) {
+
         printf("Scale: Check Reapply -> *Required = YES* : scale cached/new (%d/%d), valid=%d\n",
                scaled_output.scale_factor, scale_factor,
                scaled_output.valid_image);
+
         return TRUE;
     }
     else
@@ -160,12 +164,18 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
             scaled_output.p_scaledbuf = NULL;
         }
 
+        if (scaled_output.p_overlaybuf) {
+            g_free(scaled_output.p_overlaybuf);
+            scaled_output.p_overlaybuf = NULL;
+        }
+
         // Allocate a working buffer to copy the source image into
         // NOTE: Always RGBA 4 bytes per pixel to ensure  32 bit alignment
         // * Instead of scaled_output.size_bytes (may be 3 or 4 bpp)... always use 4BPP
 
         // g_new allocation here is in u32, so no need to multiply by * BYTE_SIZE_RGBA_4BPP
-        scaled_output.p_scaledbuf = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
+        scaled_output.p_scaledbuf  = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
+        scaled_output.p_overlaybuf = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
         // scaled_output.p_scaledbuf = (uint8_t *) g_new (guint8, scaled_output.width
         //                                                        * scaled_output.height
         //                                                        * scaled_output.bpp);
@@ -265,10 +275,15 @@ printf("Scale: Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor
 //
 void scale_release_resources(void) {
 
-  if (scaled_output.p_scaledbuf) {
-      g_free(scaled_output.p_scaledbuf);
-      scaled_output.p_scaledbuf = NULL;
-  }
+    if (scaled_output.p_scaledbuf) {
+        g_free(scaled_output.p_scaledbuf);
+        scaled_output.p_scaledbuf = NULL;
+    }
+
+    if (scaled_output.p_overlaybuf) {
+        g_free(scaled_output.p_overlaybuf);
+        scaled_output.p_overlaybuf = NULL;
+    }
 }
 
 

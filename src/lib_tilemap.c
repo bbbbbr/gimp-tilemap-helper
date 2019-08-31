@@ -17,9 +17,25 @@ tile_map_data tile_map;
 tile_set_data tile_set;
 color_data    colormap;
 
+int tilemap_needs_recalc;
+
+void tilemap_recalc_invalidate(void) {
+    printf("TILEMAP: recalc invalidated\n");
+    tilemap_needs_recalc = true;
+}
 
 
-// TODO: Fix the dubious mixing of global and locals. Simplify code
+void tilemap_recalc_clear_flag(void) {
+    printf("TILEMAP: recalc flag cleared\n");
+    tilemap_needs_recalc = false;
+}
+
+
+int tilemap_recalc_needed(void) {
+    return tilemap_needs_recalc;
+}
+
+// TODO: Fix mixing of global and locals. Simplify code
 
 // TODO: support configurable tile size
 int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height) {
@@ -52,6 +68,8 @@ int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height) 
     tile_set.tile_size   = tile_set.tile_width * tile_set.tile_height * tile_set.tile_bytes_per_pixel;
     tile_set.tile_count  = 0;
 
+    tilemap_needs_recalc = true;
+
     return (true);
 }
 
@@ -72,6 +90,8 @@ unsigned char tilemap_export_process(image_data * p_src_img, int tile_width, int
 
     if ( ! process_tiles(p_src_img) )
         return (false); // Signal failure and exit
+
+    tilemap_recalc_clear_flag();
 }
 
 

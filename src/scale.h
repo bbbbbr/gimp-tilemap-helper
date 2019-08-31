@@ -38,6 +38,7 @@
         gboolean   valid_image;
 
         uint8_t * p_scaledbuf;
+        uint8_t * p_overlaybuf;
     } scaled_output_info;
 
     gint scale_factor_get();

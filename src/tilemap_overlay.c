@@ -24,6 +24,8 @@ static int tile_height;
 static int grid_enabled;
 static int tilenums_enabled;
 
+static int redraw_required = true;
+
 
 void font_render_number(int x, int y, uint16_t num, uint8_t * p_buf );
 void font_render_digit(int x, int y, uint8_t digit, uint8_t * p_buf );
@@ -34,6 +36,25 @@ void render_grid_rgb(uint8_t * p_buf);
 void render_grid_rgba(uint32_t * p_buf);
 
 // TODO: ? better to create two buffers and overlay the text one using gimp_preview_area_mask() ?
+
+
+
+void overlay_redraw_invalidate(void) {
+    printf("Overlay: invalidated\n");
+    redraw_required = true;
+}
+
+
+void overlay_redraw_clear_flag(void) {
+    printf("OVERLAY: redraw flag cleared\n");
+    redraw_required = false;
+}
+
+
+int overlay_redraw_needed(void) {
+    return redraw_required;
+}
+
 
 
 // Called from main dialog to toggle individual overlays on and off
@@ -79,6 +100,7 @@ void font_render_number(int x, int y, uint16_t num, uint8_t * p_buf ) {
 }
 
 
+// TODO fix me: maxing out at 8 bits per digit, should support 16 bits
 // Render a font digit
 void font_render_digit(int x, int y, uint8_t digit, uint8_t * p_buf ) {
     int pix;
@@ -125,9 +147,9 @@ void pixel_draw_contrast(int x, int y, uint8_t * p_buf) {
         else {
 
             // Set pixel to new contrasted value
-            *p_buf++ |= 0x80; // = *p_buf + 128; // Red
-            *p_buf++ |= 0x80; // = *p_buf + 128; // Green
-            *p_buf++ |= 0x80; // = *p_buf + 128; // Blue
+            *p_buf++ ^= 0x80; // = *p_buf + 128; // Red
+            *p_buf++ ^= 0x80; // = *p_buf + 128; // Green
+            *p_buf++ ^= 0x80; // = *p_buf + 128; // Blue
         }
 
         // handle opacity if needed
@@ -313,6 +335,7 @@ void tilemap_overlay_apply(uint32_t map_size, uint8_t * map_tilelist) {
 
     benchmark_elapsed();
 
+    overlay_redraw_clear_flag();
 }
 
 

@@ -17,6 +17,10 @@ void tilemap_overlay_set_enables(int grid_enabled, int tilenums_enabled);
 
 void tilemap_overlay_apply(uint32_t map_size, uint8_t * map_tilelist);
 
+void overlay_redraw_invalidate(void);
+void overlay_redraw_clear_flag(void);
+int  overlay_redraw_needed(void);
+
 
     // Overlay 3 x 5 font in pixel offset locations
     // first byte = number of pixel pairs
