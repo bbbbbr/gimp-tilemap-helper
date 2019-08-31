@@ -134,8 +134,6 @@ gint scaled_output_check_reapply_scale() {
 void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_new)
 {
 
-    glong scaledbuf_size = 0;
-
     printf("Scale: Check Realloc : (%d/%d) (%d/%d) (%d/%d) (%d/%d) (%ld/%d)..  ",
         scaled_output.bpp          , bpp_new,
         scaled_output.width        , width_new  * scale_factor,
@@ -162,12 +160,15 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
             scaled_output.p_scaledbuf = NULL;
         }
 
-        // Allocate a working buffer to copy the source image into - always RGBA 4BPP
-        // 32 bit to ensure alignment, divide size since it's in BYTES
+        // Allocate a working buffer to copy the source image into
+        // NOTE: Always RGBA 4 bytes per pixel to ensure  32 bit alignment
         // * Instead of scaled_output.size_bytes (may be 3 or 4 bpp)... always use 4BPP
-        scaledbuf_size = scaled_output.width * scaled_output.height * BYTE_SIZE_RGBA_4BPP;
-        scaled_output.p_scaledbuf = (uint8_t *) g_new (guint32, scaledbuf_size);
-        // scaled_output.p_scaledbuf = (uint8_t *) g_new (guint8, scaled_output.size_bytes);
+
+        // g_new allocation here is in u32, so no need to multiply by * BYTE_SIZE_RGBA_4BPP
+        scaled_output.p_scaledbuf = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
+        // scaled_output.p_scaledbuf = (uint8_t *) g_new (guint8, scaled_output.width
+        //                                                        * scaled_output.height
+        //                                                        * scaled_output.bpp);
 
         // Invalidate the image
         scaled_output.valid_image = FALSE;
