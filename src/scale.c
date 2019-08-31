@@ -110,12 +110,20 @@ gint scaled_output_check_reapply_scale() {
     // If either the scale factor changed or there is no valid
     // image rendered at the moment, then signal TRUE to indicate
     // scaling should be re-applied
-    printf("Scale: Check Reapply -> scale cached/new (%d/%d), valid=%d\n",
-            scaled_output.scale_factor, scale_factor,
-            scaled_output.valid_image);
 
-    return ((scaled_output.scale_factor != scale_factor) ||
-            (scaled_output.valid_image == FALSE));
+    // printf("Scale: Check Reapply -> scale cached/new (%d/%d), valid=%d\n",
+    //         scaled_output.scale_factor, scale_factor,
+    //         scaled_output.valid_image);
+
+    if ((scaled_output.scale_factor != scale_factor) ||
+        (scaled_output.valid_image == FALSE)) {
+        printf("Scale: Check Reapply -> *Required = YES* : scale cached/new (%d/%d), valid=%d\n",
+               scaled_output.scale_factor, scale_factor,
+               scaled_output.valid_image);
+        return TRUE;
+    }
+    else
+        return FALSE;
 }
 
 
