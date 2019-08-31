@@ -27,13 +27,13 @@ static int tilenums_enabled;
 static int redraw_required = true;
 
 
-void font_render_number(int x, int y, uint16_t num, uint8_t * p_buf );
-void font_render_digit(int x, int y, uint8_t digit, uint8_t * p_buf );
-void pixel_draw_contrast(int x, int y, uint8_t * p_buf);
-void pixel_draw_color(int x, int y, uint8_t * p_buf, uint8_t r, uint8_t g, uint8_t b);
+static void font_render_number(int x, int y, uint16_t num, uint8_t * p_buf );
+static void font_render_digit(int x, int y, uint8_t digit, uint8_t * p_buf );
+static void pixel_draw_contrast(int x, int y, uint8_t * p_buf);
+static void pixel_draw_color(int x, int y, uint8_t * p_buf, uint8_t r, uint8_t g, uint8_t b);
 
-void render_grid_rgb(uint8_t * p_buf);
-void render_grid_rgba(uint32_t * p_buf);
+static void render_grid_rgb(uint8_t * p_buf);
+static void render_grid_rgba(uint32_t * p_buf);
 
 // TODO: ? better to create two buffers and overlay the text one using gimp_preview_area_mask() ?
 
@@ -80,7 +80,7 @@ void tilemap_overlay_setparams(uint8_t * p_overlaybuf_new,
 
 
 // Render a font digit
-void font_render_number(int x, int y, uint16_t num, uint8_t * p_buf ) {
+static void font_render_number(int x, int y, uint16_t num, uint8_t * p_buf ) {
     int digits[5];       // Store At most 5 digits
     int digit_count = 0; // Initialize digit count
 
@@ -100,9 +100,8 @@ void font_render_number(int x, int y, uint16_t num, uint8_t * p_buf ) {
 }
 
 
-// TODO fix me: maxing out at 8 bits per digit, should support 16 bits
 // Render a font digit
-void font_render_digit(int x, int y, uint8_t digit, uint8_t * p_buf ) {
+static void font_render_digit(int x, int y, uint8_t digit, uint8_t * p_buf ) {
     int pix;
 
     if (digit <= 9) {
@@ -129,7 +128,7 @@ void font_render_digit(int x, int y, uint8_t digit, uint8_t * p_buf ) {
 
 // Draw a pixel by semi-inverting the current pixel value (roll it 128 bytes upward + wraparound)
 // Expects BPP to only = 3 or 4
-void pixel_draw_contrast(int x, int y, uint8_t * p_buf) {
+static void pixel_draw_contrast(int x, int y, uint8_t * p_buf) {
 
     // Don't draw outside the image buffer
     if ((x < width) && (y < height)) {
@@ -161,7 +160,7 @@ void pixel_draw_contrast(int x, int y, uint8_t * p_buf) {
 
 // Draw a pixel with a given color
 // Expects BPP to only = 3 or 4
-void pixel_draw_color(int x, int y, uint8_t * p_buf, uint8_t r, uint8_t g, uint8_t b) {
+static void pixel_draw_color(int x, int y, uint8_t * p_buf, uint8_t r, uint8_t g, uint8_t b) {
 
     // Don't draw outside the image buffer
     if ((x < width) && (y < height)) {
@@ -182,7 +181,7 @@ void pixel_draw_color(int x, int y, uint8_t * p_buf, uint8_t r, uint8_t g, uint8
 
 
 // Render a tile spaced grid of semi-inverted pixels in the image buffer
-void render_grid_rgb(uint8_t * p_buf) {
+static void render_grid_rgb(uint8_t * p_buf) {
 
     uint8_t * p_pix;
     int       x,y;
@@ -231,7 +230,7 @@ void render_grid_rgb(uint8_t * p_buf) {
 
 
 // Render a tile spaced grid of semi-inverted pixels in the image buffer
-void render_grid_rgba(uint32_t * p_buf) {
+static void render_grid_rgba(uint32_t * p_buf) {
 
     uint32_t * p_pix;
     int        x,y;
@@ -286,7 +285,7 @@ void render_grid_rgba(uint32_t * p_buf) {
 }
 
 
-void render_tilenums (uint8_t * p_buf, uint32_t map_size, uint8_t * map_tilelist) {
+static void render_tilenums (uint8_t * p_buf, uint32_t map_size, uint32_t * map_tilelist) {
 
     int x,y;
     int tile_index;
@@ -309,7 +308,7 @@ void render_tilenums (uint8_t * p_buf, uint32_t map_size, uint8_t * map_tilelist
 }
 
 
-void tilemap_overlay_apply(uint32_t map_size, uint8_t * map_tilelist) {
+void tilemap_overlay_apply(uint32_t map_size, uint32_t * map_tilelist) {
 
 //    printf("Overlay: Drawing now...\n");
 

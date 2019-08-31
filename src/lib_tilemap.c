@@ -54,8 +54,7 @@ int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height) 
     // width x height in tiles (if every map tile is unique)
     tile_map.size = (tile_map.width_in_tiles * tile_map.height_in_tiles);
 
-    //tile_map.tile_id_list = malloc(tile_map.size * sizeof(int32_t)); // Why was this uint32_t?
-    tile_map.tile_id_list = malloc(tile_map.size);
+    tile_map.tile_id_list = malloc(tile_map.size * sizeof(int32_t));
 
     if (!tile_map.tile_id_list)
             return(false);
@@ -145,31 +144,31 @@ benchmark_start();
                 // Set buffer offset to upper left of current tile
                 img_buf_offset = (img_x + (img_y * tile_map.map_width)) * p_src_img->bytes_per_pixel;
 
-benchmark_slot_start(0);
+                benchmark_slot_start(0);
                 tile_copy_tile_from_image(p_src_img,
                                           &tile,
                                           img_buf_offset);
-benchmark_slot_update(0);
+                benchmark_slot_update(0);
 
 
-benchmark_slot_start(9);
+                benchmark_slot_start(9);
                 // TODO! Don't hash transparent pixels? Have to overwrite second byte?
                 tile.hash = MurmurHash2( tile.p_img_raw, tile.raw_size_bytes, 0xF0A5); // len is u8count
-benchmark_slot_update(9);
+                benchmark_slot_update(9);
 
 
-benchmark_slot_start(2);
+                benchmark_slot_start(2);
                 // TODO: search could be optimized with a hash array
                 tile_id = tile_find_matching(tile.hash, &tile_set);
-//printf("New Tile: (%3d, %3d) tile_id=%4d, tile_hash = %8lx \n", img_x, img_y, tile_id, tile.hash);
-benchmark_slot_update(2);
+                //printf("New Tile: (%3d, %3d) tile_id=%4d, tile_hash = %8lx \n", img_x, img_y, tile_id, tile.hash);
+                benchmark_slot_update(2);
 
                 // Tile not found, create a new entry
                 if (tile_id == TILE_ID_NOT_FOUND) {
 
-benchmark_slot_start(3);
+                    benchmark_slot_start(3);
                     tile_id = tile_register_new(&tile, &tile_set);
-benchmark_slot_update(3);
+                    benchmark_slot_update(3);
 
                     if (tile_id <= TILE_ID_OUT_OF_SPACE) {
                         // Free using the original pointer, not tile.p_img_raw
@@ -185,14 +184,16 @@ benchmark_slot_update(3);
 
                 tile_map.tile_id_list[map_slot] = test; // = tile_id; // TODO: IMPORTANT, SOMETHING IS VERY WRONG
 
-// printf("Map Slot %d: tile_id=%d tilemap[]=%d, %08lx\n",map_slot, tile_id, tile_map.tile_id_list[map_slot], tile.hash);
+                // printf("Map Slot %d: tile_id=%d tilemap[]=%d, %08lx\n",map_slot, tile_id, tile_map.tile_id_list[map_slot], tile.hash);
                 map_slot++;
             }
         }
 
     } else { // else if (tile.p_img_raw) {
-        if (tile_map.tile_id_list)
+        if (tile_map.tile_id_list) {
             free(tile_map.tile_id_list);
+            tile_map.tile_id_list = NULL;
+        }
         return (false); // Failed to allocate buffer, exit
     }
 
@@ -239,8 +240,10 @@ void tilemap_free_resources() {
     }
 
     // Free tile map data
-    if (tile_map.tile_id_list)
+    if (tile_map.tile_id_list) {
         free(tile_map.tile_id_list);
+        tile_map.tile_id_list = NULL;
+    }
 
 }
 

@@ -972,7 +972,9 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
                                         dialog_settings.tile_height);
 
         // TODO: warn/notify on failure (invalid tile size, etc)
-
+      if (!status)
+        printf("Tilemap: Recalc -> FAILED: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
+/*
         if (status) {
 
             // Retrieve the deduplicated map and tile set
@@ -981,21 +983,14 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
             // status     = tilemap_get_image_of_deduped_tile_set(&tile_set_deduped_image);
 
             // Set tile map parameters, then convert the image to a map
-            /*
-            p_map->width_in_tiles;
-            p_map->height_in_tiles;
-            p_tile_set->tile_count;
 
-            p_map->tile_id_list -> uint8_t * p_map_data
-            p_map->size
-
-            */
             // tilemap_recalc_needed() = FALSE;
 
             //printf("tilemap:done --> tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
         }
         else
             printf("Tilemap: Recalc -> FAILED: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
+*/
     }
     else
          printf("Tilemap: Recalc -> Not Needed: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
@@ -1170,9 +1165,9 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
     #define PREVIEW_WIDGET_BORDER_Y 2
 
 
-    gint tile_num;
-    gint tile_x, tile_y, tile_idx;
-    gint img_x, img_y;
+    guint32 tile_num;
+    guint32 tile_x, tile_y, tile_idx;
+    guint32 img_x, img_y;
 
     scaled_output_info * scaled_output;
 
