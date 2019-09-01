@@ -53,6 +53,7 @@ static PluginTileMapVals plugin_config_vals = // PluginPixelArtScalerVals plugin
   1,  // gint overlay_grid_enabled;
   1,  // gint overlay_tileids_enabled;
   0,  // gint  finalbpp;
+  1,  // gint flattened_image;
 };
 
 
@@ -182,7 +183,7 @@ printf("================================= Filter Main: run mode=%d  image_id = %
             }
 
             break;
-
+/*
         case GIMP_RUN_NONINTERACTIVE:
             // Read in non-interactive mode plugin settings, then apply them
             plugin_config_vals.tile_width   = param[3].data.d_int32;
@@ -192,7 +193,7 @@ printf("================================= Filter Main: run mode=%d  image_id = %
             // Set settings/config in dialog
             tilemap_dialog_settings_set(&plugin_config_vals);
             break;
-
+*/
         case GIMP_RUN_WITH_LAST_VALS:
             //  Try to retrieve plugin settings, then apply them
             gimp_get_data (PLUG_IN_PROCEDURE, &plugin_config_vals);

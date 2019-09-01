@@ -44,6 +44,7 @@ static void on_setting_scale_spinbutton_changed(GtkSpinButton *, gpointer);
 static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
 static void on_setting_overlay_checkbutton_changed(GtkToggleButton *, gpointer);
 static void on_setting_finalbpp_combo_changed(GtkComboBox *, gpointer);
+static void on_setting_flattened_image_checkbutton_changed(GtkToggleButton *, gpointer);
 
 static void on_action_maptoclipboard_button_clicked(GtkButton *, gpointer);
 
@@ -80,6 +81,8 @@ static GtkWidget * mouse_hover_display;
 // TODO: consider passing parent vbox into widget creation so these can be moved to local vars (?)
 static GtkWidget * setting_scale_label;
 static GtkWidget * setting_scale_spinbutton;
+
+static GtkWidget * setting_flattened_image_checkbutton;
 
 static GtkWidget * setting_overlay_grid_checkbutton;
 static GtkWidget * setting_overlay_tileids_checkbutton;
@@ -289,6 +292,9 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
         setting_checkmirror_checkbutton = gtk_check_button_new_with_label("Check Mirroring");
         setting_checkrotation_checkbutton = gtk_check_button_new_with_label("Check Rotation");
 
+        // Checkbox for whether to sample the source image as a single layer or flattened
+        setting_flattened_image_checkbutton = gtk_check_button_new_with_label("Flattened Image");
+
     // Info readout/display area
     tile_info_display = gtk_label_new (NULL);
     gtk_label_set_markup(GTK_LABEL(tile_info_display),
@@ -354,8 +360,9 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
     gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_processing_label,                2, 3, 0, 1);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_label,              2, 3, 1, 2);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_hbox,               2, 3, 2, 3);
-        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 3, 3, 4);
-        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 3, 4, 5);
+//        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 3, 3, 4);
+//        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 3, 4, 5);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_flattened_image_checkbutton,   2, 3, 4, 5);
 
     gtk_table_attach_defaults (GTK_TABLE (setting_table), tile_info_display,        3, 4, 0, 4);  // Vertical Column
     gtk_table_attach_defaults (GTK_TABLE (setting_table), memory_info_display,      4, 5, 0, 4);  // Vertical Column
@@ -450,6 +457,8 @@ void dialog_settings_apply_to_ui() {
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(setting_finalbpp_combo), 0);
 
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_flattened_image_checkbutton), dialog_settings.flattened_image);
+
     // Loop through combo options to see if any match the string for the finalbpp value,
     // if there is a match then update combo box selection
     snprintf(incoming_val_str, 255, "%d", dialog_settings.finalbpp);
@@ -502,6 +511,9 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
     g_signal_connect (setting_finalbpp_combo, "changed",
                       G_CALLBACK (on_setting_finalbpp_combo_changed), NULL);
 
+    g_signal_connect(G_OBJECT(setting_flattened_image_checkbutton), "toggled",
+                      G_CALLBACK(on_setting_flattened_image_checkbutton_changed), NULL);
+
     // ======== HANDLE PROCESSING UPDATES VIA UI CONTROL VALUE CHANGES ========
 
     // Connect a second signal to trigger a preview update
@@ -518,6 +530,9 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
     g_signal_connect_swapped (setting_overlay_grid_checkbutton, "toggled",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
     g_signal_connect_swapped (setting_overlay_tileids_checkbutton, "toggled",
+                              G_CALLBACK(tilemap_dialog_processing_run), drawable);
+
+    g_signal_connect_swapped (setting_flattened_image_checkbutton, "toggled",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 
     g_signal_connect (action_maptoclipboard_button, "clicked",
@@ -587,11 +602,7 @@ static void on_setting_overlay_checkbutton_changed(GtkToggleButton * p_togglebut
     dialog_settings.overlay_grid_enabled    = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(setting_overlay_grid_checkbutton));
     dialog_settings.overlay_tileids_enabled = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(setting_overlay_tileids_checkbutton));
 
-//    printf("        --> EVENT: Setting Enables: %d, %d\n", dialog_settings.overlay_grid_enabled,
-//                                dialog_settings.overlay_tileids_enabled);
-
     // Request a redraw of the scaled preview + overlay
-    // scaled_output_invalidate();
     overlay_redraw_invalidate();
 }
 
@@ -601,6 +612,17 @@ static void on_setting_finalbpp_combo_changed(GtkComboBox *combo, gpointer callb
     dialog_settings.finalbpp = atoi(gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(combo)));
 
     dialog_ui_update();
+}
+
+
+static void on_setting_flattened_image_checkbutton_changed(GtkToggleButton * p_togglebutton, gpointer callback_data) {
+
+    dialog_settings.flattened_image = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(setting_flattened_image_checkbutton));
+
+    // Request a reload of the source image and then a redraw of everything
+    dialog_source_image_free_and_reset();
+    scaled_output_invalidate();
+    tilemap_recalc_invalidate();
 }
 
 
@@ -878,6 +900,7 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 }
 
 
+
 static void dialog_source_image_free_and_reset() {
 
     if (app_image.p_img_data) {
@@ -890,25 +913,45 @@ static void dialog_source_image_free_and_reset() {
 }
 
 
-
-static gint dialog_source_image_load(GimpDrawable * drawable) {
+// TODO: move this and above into a separate file
+static gint dialog_source_image_load(GimpDrawable * drawable_layer) {
 
     GimpPixelRgn src_rgn;
     gint         width, height;
     gint         x, y;
 
-    printf("Source Image: Loading...\n");
+    gint32         temp_image_id;
+    gint32         temp_flattened_layer;
+    GimpDrawable * source_drawable;
+
+    printf("Source Image: Loading (flattened=%d)...\n", dialog_settings.flattened_image);
+
+    temp_image_id = 0;
+
+    // SOURCE IMAGE: Use either layer passed to the plugin, or a
+    //               flattened copy of the entire image (default)
+    if (dialog_settings.flattened_image) {
+        // Make a copy of the current image, merge all layers, then retrieve the drawable
+        temp_image_id         = gimp_image_duplicate(image_id);
+        temp_flattened_layer  = gimp_image_merge_visible_layers(temp_image_id, GIMP_CLIP_TO_IMAGE);
+        source_drawable       = gimp_drawable_get(temp_flattened_layer);
+    }
+       else {
+           source_drawable = drawable_layer;
+   }
 
     // gimp_preview_get_position (preview, &x, &y);
     // gimp_preview_get_size (preview, &width, &height);
-    if (! gimp_drawable_mask_intersect (drawable->drawable_id,
+    if (! gimp_drawable_mask_intersect (source_drawable->drawable_id,
                                         &x, &y, &width, &height)) {
         dialog_source_image_free_and_reset();
+        if (temp_image_id)
+            gimp_image_delete (temp_image_id);
         return FALSE;
     }
 
     // Get the Bytes Per Pixel of the incoming app image
-    app_image.bytes_per_pixel = drawable->bpp;
+    app_image.bytes_per_pixel = source_drawable->bpp;
 
     // Determine the array size for the app's image then allocate it
     app_image.width      = width;
@@ -923,7 +966,7 @@ static gint dialog_source_image_load(GimpDrawable * drawable) {
     // FALSE, FALSE : region will be used to read the actual drawable data
     // Initialize source pixel region with drawable
     gimp_pixel_rgn_init (&src_rgn,
-                         drawable,
+                         source_drawable,
                          x, y,
                          width, height,
                          FALSE, FALSE);
@@ -934,12 +977,19 @@ static gint dialog_source_image_load(GimpDrawable * drawable) {
                              x, y, width, height);
 
 
-    if ( !dialog_source_colormap_load(drawable) ) {
+    if ( !dialog_source_colormap_load(source_drawable) ) {
         dialog_source_image_free_and_reset();
+        if (temp_image_id)
+            gimp_image_delete (temp_image_id);
         return false;
     }
 
     printf("Source Image: ... Loading Completed\n");
+    if (temp_image_id)
+        if (! gimp_image_delete (temp_image_id) ) {
+            printf("Source Image: **Warning, failed to delete cloned image**\n");
+        }
+
     return true;
 }
 

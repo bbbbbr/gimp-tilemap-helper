@@ -15,6 +15,8 @@
         gint  overlay_tileids_enabled;
 
         gint  finalbpp;
+
+        gint  flattened_image;
     //  gint  offset_x;
     //  gint  offset_y;
 
