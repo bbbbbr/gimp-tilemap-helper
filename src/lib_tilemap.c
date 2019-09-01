@@ -20,13 +20,13 @@ color_data    colormap;
 int tilemap_needs_recalc;
 
 void tilemap_recalc_invalidate(void) {
-    printf("TILEMAP: recalc invalidated\n");
+    printf("Tilemap: recalc invalidated\n");
     tilemap_needs_recalc = true;
 }
 
 
 void tilemap_recalc_clear_flag(void) {
-    printf("TILEMAP: recalc flag cleared\n");
+    printf("Tilemap: recalc flag cleared\n");
     tilemap_needs_recalc = false;
 }
 

@@ -33,8 +33,10 @@ extern const char PLUG_IN_ROLE[];
 extern const char PLUG_IN_BINARY[];
 
 static int dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
-static void resize_image_and_apply_changes(GimpDrawable *, guchar *, guint);
-// static void on_setting_scaler_combo_changed (GtkComboBox *, gpointer);
+
+static void dialog_source_image_free_and_reset();
+static gint dialog_source_image_load(GimpDrawable * drawable);
+static gint dialog_source_colormap_load(GimpDrawable * drawable);
 
 static void on_scaled_preview_mouse_exited(GtkWidget * window, gpointer callback_data);
 static void on_scaled_preview_mouse_moved(GtkWidget * window, gpointer callback_data);
@@ -56,7 +58,7 @@ static void tilemap_copy_map_to_clipboard();
 
 gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
 
-static void tilemap_calculate(uint8_t *, gint, gint, gint);
+static void tilemap_calculate();
 
 static void tilemap_render_overlay();
 static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc);
@@ -378,10 +380,11 @@ gtk_table_attach_defaults (GTK_TABLE (setting_table), action_maptoclipboard_butt
 
     // ======== SHOW THE DIALOG AND RUN IT ========
 
-    // TODO: is this still needed?
+    // TODO: move this to an init function
     scaled_output_invalidate();
     tilemap_recalc_invalidate();
     overlay_redraw_invalidate();
+    dialog_source_image_free_and_reset();
 
 
     gtk_widget_show (dialog);
@@ -687,18 +690,10 @@ int dialog_calc_dest_bpp(int src_bpp) {
 void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview)
 {
     GimpImageType drawable_type;
-    GimpPixelRgn src_rgn;
-    gint         src_bpp, dest_bpp;
-    gint         width, height;
-    gint         x, y;
+    gint         dest_bpp;
 
-    uint8_t    * p_srcbuf = NULL;
-    glong        srcbuf_size = 0;
     scaled_output_info * scaled_output;
 
-    color_data   color_map;
-    guchar     * p_colormap_buf = NULL;
-    gint         colormap_numcolors = 0;
 
 
     printf("Process: Start --> tilemap recalc = %d, scale = %d\n", tilemap_recalc_needed(), dialog_settings.scale_factor);
@@ -706,104 +701,48 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
     // Apply dialog settings
     tilemap_overlay_set_enables(dialog_settings.overlay_grid_enabled,
                                 dialog_settings.overlay_tileids_enabled);
+
     scale_factor_set( dialog_settings.scale_factor );
 
     // Check for previously rendered output
     scaled_output = scaled_info_get();
 
-    // Get bit depth and alpha mask status
-    src_bpp = drawable->bpp;
-    dest_bpp = dialog_calc_dest_bpp(src_bpp);
+    // Load source image data if needed
+    if (app_image.p_img_data == NULL)
+        dialog_source_image_load(drawable);
 
-    // TODO: Always use the entire image?
-
-    // Get the working image area for either the preview sub-window or the entire image
-    if (preview) {
-        // gimp_preview_get_position (preview, &x, &y);
-        // gimp_preview_get_size (preview, &width, &height);
-        if (! gimp_drawable_mask_intersect (drawable->drawable_id,
-                                                 &x, &y, &width, &height)) {
-            return;
-        }
-
-        // Check to see if the window size has changed or needs to change
-        //
-        // If the check triggered a resize then a second redraw will be queued, and
-        // so this should exit immediately.--> The rest of the processing and
-        // drawing will happen on the second pass
-        if (dialog_scaled_preview_check_resize( preview_scaled,
-                                                width, height,
-                                                dialog_settings.scale_factor))
-            return;
-
-    } else if (! gimp_drawable_mask_intersect (drawable->drawable_id,
-                                             &x, &y, &width, &height)) {
-        // TODO: DO STUFF WHEN CALLED AFTER DIALOG CLOSED
+    // Check to see if the window size has changed or needs to change
+    //
+    // If the check triggered a resize then a second redraw will be queued, and
+    // so this should exit immediately.--> The rest of the processing and
+    // drawing will happen on the second pass
+    if (dialog_scaled_preview_check_resize( preview_scaled,
+                                            app_image.width, app_image.height,
+                                            dialog_settings.scale_factor))
         return;
-    }
 
-
+    // Get bit depth and alpha mask status
+    dest_bpp = dialog_calc_dest_bpp(app_image.bytes_per_pixel);
 
 
     // Allocate output buffer for upscaled image
     // NOTE: This is feeding in the dest/scaled RGB/ALPHA 3/4 BPP that was promoted from INDEXED/ALPHA 1/2 BPP
-    scaled_output_check_reallocate(dest_bpp, width, height);
-
+    scaled_output_check_reallocate(dest_bpp,
+                                   app_image.width,
+                                   app_image.height);
 
     // TODO: switch this to an invalidate model like tilemap_recalc_needed()? - then above could be merged in and nested
     if (scaled_output_check_reapply_scale() || tilemap_recalc_needed()) {
-
-        // TODO: OPTIMIZE: since the source image will get re-used often,
-        // consider making the buffer/data global and caching it
-        // dialog_source_image_load();
-
-        // ====== GET THE SOURCE IMAGE ======
-        // Allocate a working buffer to copy the source image into - always RGBA 4BPP
-        // 32 bit to ensure alignment, divide size since it's in BYTES
-        srcbuf_size = width * height * BYTE_SIZE_RGBA_4BPP;
-        p_srcbuf = (uint8_t *) g_new (guint32, srcbuf_size / BYTE_SIZE_RGBA_4BPP);
-
-
-        // FALSE, FALSE : region will be used to read the actual drawable data
-        // Initialize source pixel region with drawable
-        gimp_pixel_rgn_init (&src_rgn,
-                             drawable,
-                             x, y,
-                             width, height,
-                             FALSE, FALSE);
-
-        // Copy source image to working buffer
-        gimp_pixel_rgn_get_rect (&src_rgn,
-                                 (guchar *) p_srcbuf,
-                                 x, y, width, height);
-
-
-        // TODO: handle grayscale?
-        // gimp_drawable_is_gray()
-        // gimp_drawable_is_rgb()
-        // Load color map if needed
-        if (gimp_drawable_is_indexed(drawable->drawable_id)) {
-
-            // Load the color map and copy it to a working buffer
-            p_colormap_buf = gimp_image_get_colormap(image_id, &colormap_numcolors);
-
-            // Make a local copy of the color map (rgb24 * number of colors)
-            memcpy(&(color_map.pal[0]), p_colormap_buf, colormap_numcolors * 3);
-            color_map.color_count = colormap_numcolors;
-        }
-        else
-            colormap_numcolors = 0;
-
 
         if (scaled_output_check_reapply_scale()) {
             // ====== APPLY THE SCALER ======
             // NOTE: Promotes INDEXED/ALPHA 1/2 BPP to RGB/ALPHA 3/4 BPP
             //       Expects p_destbuf to be allocated with 3/4 BPP RGB/A number of bytes, not 1/2 if INDEXED
-            scale_apply(p_srcbuf,
+            scale_apply(app_image.p_img_data,
                         scaled_output->p_scaledbuf,
-                        src_bpp,
-                        width, height,
-                        p_colormap_buf, colormap_numcolors);
+                        app_image.bytes_per_pixel,
+                        app_image.width, app_image.height,
+                        app_colors.pal, app_colors.color_count);
 
             // Queue a tile map overlay redraw since the scaled output changed
             overlay_redraw_invalidate();
@@ -811,11 +750,9 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 
         // ====== CALCULATE TILE MAP & TILES ======
         if (tilemap_recalc_needed()) {
-            tilemap_calculate(p_srcbuf,
-                              src_bpp,
-                              width, height);
+            tilemap_calculate();
 
-            tilemap_color_data_set(&color_map);
+            tilemap_color_data_set(&app_colors);
 
             // Queue a tile map overlay redraw since the tile map info changed
             overlay_redraw_invalidate();
@@ -918,54 +855,122 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 
 
     printf("PROCESS: === END ===\n\n");
-    // Free the working buffer
-    if (p_srcbuf)
-        g_free (p_srcbuf);
 }
+
+
+static void dialog_source_image_free_and_reset() {
+
+    if (app_image.p_img_data) {
+        g_free(app_image.p_img_data);
+    }
+
+    app_image.p_img_data = NULL;
+
+    app_colors.color_count = 0;
+}
+
+
+
+static gint dialog_source_image_load(GimpDrawable * drawable) {
+
+    GimpPixelRgn src_rgn;
+    gint         width, height;
+    gint         x, y;
+
+    printf("Source Image: Loading...\n");
+
+    // gimp_preview_get_position (preview, &x, &y);
+    // gimp_preview_get_size (preview, &width, &height);
+    if (! gimp_drawable_mask_intersect (drawable->drawable_id,
+                                        &x, &y, &width, &height)) {
+        dialog_source_image_free_and_reset();
+        return FALSE;
+    }
+
+    // Get the Bytes Per Pixel of the incoming app image
+    app_image.bytes_per_pixel = drawable->bpp;
+
+    // Determine the array size for the app's image then allocate it
+    app_image.width      = width;
+    app_image.height     = height;
+    app_image.size       = app_image.width * app_image.height * app_image.bytes_per_pixel;
+
+    // TODO: Source image should be allocated with 32 bit alignment
+    // source_image.size = source_image.width * source_image.height * BYTE_SIZE_RGBA_4BPP;
+    // p_srcbuf = (uint8_t *) g_new (guint32, srcbuf_size / BYTE_SIZE_RGBA_4BPP);
+    app_image.p_img_data = (uint8_t *) g_new (guint32, app_image.size);
+
+    // FALSE, FALSE : region will be used to read the actual drawable data
+    // Initialize source pixel region with drawable
+    gimp_pixel_rgn_init (&src_rgn,
+                         drawable,
+                         x, y,
+                         width, height,
+                         FALSE, FALSE);
+
+    // Copy source image to working buffer
+    gimp_pixel_rgn_get_rect (&src_rgn,
+                             (guchar *) app_image.p_img_data,
+                             x, y, width, height);
+
+
+    if ( !dialog_source_colormap_load(drawable) ) {
+        dialog_source_image_free_and_reset();
+        return false;
+    }
+
+    printf("Source Image: ... Loading Completed\n");
+    return true;
+}
+
+
+static gint dialog_source_colormap_load(GimpDrawable * drawable) {
+
+    guchar     * p_colormap_buf;
+    gint         colormap_numcolors;
+
+    colormap_numcolors = 0;
+    p_colormap_buf = NULL;
+
+    // TODO: handle grayscale?
+    // gimp_drawable_is_gray()
+    // gimp_drawable_is_rgb()
+    // Load color map if needed
+    if (gimp_drawable_is_indexed(drawable->drawable_id)) {
+
+        // Load the color map and copy it to a working buffer
+        p_colormap_buf = gimp_image_get_colormap(image_id, &colormap_numcolors);
+
+        // Abort if there are too many colors
+        if (colormap_numcolors > COLOR_DATA_PAL_MAX_COUNT)
+            return false;
+
+        // Make a local copy of the color map (rgb24 * number of colors)
+        memcpy(&(app_colors.pal[0]), p_colormap_buf, colormap_numcolors * 3);
+        app_colors.color_count = colormap_numcolors;
+        app_colors.size = colormap_numcolors * 3;
+    }
+    else
+        app_colors.color_count = 0;
+
+    return true; // Success
+}
+
 
 
 
 // TODO: variable tile size (push down via app settings?)
 //  gint image_id, gint drawable_id, gint image_mode)
-void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
+void tilemap_calculate() {
 
     gint status;
 
     tile_map_data * p_map;
     tile_set_data * p_tile_set;
-    image_data      tile_set_deduped_image;
-
 
     status = TRUE; // Default to success
 
-    /*
-// TODO: FIXME Update getting triggered incorrectly by changes in scale
-    // TODO: move into function
-    // TODO: or tile size, mirror or rotate changed
-    // Did any map related settings change? Then queue an update
-    if ((app_image.bytes_per_pixel != bpp)             ||
-        (app_image.width      != width)                ||
-        (app_image.height     != height)               ||
-        (app_image.size       != width * height * bpp) ||
-        (p_map->tile_width    != dialog_settings.tile_width) ||
-        (p_map->tile_height   != dialog_settings.tile_height))
-    {
-        tilemap_recalc_needed() = TRUE;
-        printf("Tilemap Recalc check = True\n");
-    }
-*/
-    // Get the Bytes Per Pixel of the incoming app image
-    app_image.bytes_per_pixel = bpp;
-
-    // Determine the array size for the app's image then allocate it
-    app_image.width      = width;
-    app_image.height     = height;
-    app_image.size       = width * height * bpp;
-    app_image.p_img_data = p_srcbuf;
-
-
-    // TODO: FIXME: invalidate model is failing to work if tilemap fails due to excessive tile count/etc -> it's causing multiple pointless recalculations in a row, bad for large images
-    if (tilemap_recalc_needed) {
+    if (tilemap_recalc_needed()) {
         // printf("Tilemap: Starting Recalc: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
         status = tilemap_export_process(&app_image,
                                         dialog_settings.tile_width,
@@ -974,23 +979,6 @@ void tilemap_calculate(uint8_t * p_srcbuf, gint bpp, gint width, gint height) {
         // TODO: warn/notify on failure (invalid tile size, etc)
       if (!status)
         printf("Tilemap: Recalc -> FAILED: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
-/*
-        if (status) {
-
-            // Retrieve the deduplicated map and tile set
-            p_map      = tilemap_get_map();
-            p_tile_set = tilemap_get_tile_set();
-            // status     = tilemap_get_image_of_deduped_tile_set(&tile_set_deduped_image);
-
-            // Set tile map parameters, then convert the image to a map
-
-            // tilemap_recalc_needed() = FALSE;
-
-            //printf("tilemap:done --> tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
-        }
-        else
-            printf("Tilemap: Recalc -> FAILED: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
-*/
     }
     else
          printf("Tilemap: Recalc -> Not Needed: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
@@ -1226,81 +1214,7 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
 }
 
 
-// TODO
-// gint tilemap_check_needs_recalcualte()
+void dialog_free_resources() {
 
-
-// resize_image_and_apply_changes
-//
-// Resizes image and then draws the newly scaled output onto it.
-// This is only for FINAL, NON-PREVIEW rendered output
-//
-// Called from pixel_art_scalers_run()
-//
-// Params:
-// * GimpDrawable          : from source image
-// * guchar * buffer       : the previously rendered scaled output
-// * guint    scale_factor : image scale multiplier
-//
-/*
-void resize_image_and_apply_changes(GimpDrawable * drawable, guchar * p_scaledbuf, guint scale_factor)
-{
-    GimpPixelRgn  dest_rgn;
-    gint          x,y, width, height;
-    GimpDrawable  * resized_drawable;
-
-    if (! gimp_drawable_mask_intersect (drawable->drawable_id,
-                                         &x, &y, &width, &height))
-        return;
-
-    // == START UNDO GROUPING
-    gimp_image_undo_group_start(gimp_item_get_image(drawable->drawable_id));
-
-    // Resize source image
-    if (gimp_image_resize(gimp_item_get_image(drawable->drawable_id),
-                          width * scale_factor,
-                          height * scale_factor,
-                          0,0))
-    {
-
-        // Resize the current layer to match the resized image
-        gimp_layer_resize_to_image_size( gimp_image_get_active_layer(
-                                           gimp_item_get_image(drawable->drawable_id) ) );
-
-
-        // Get a new drawable handle from the resized layer/image
-        resized_drawable = gimp_drawable_get( gimp_image_get_active_drawable(
-                                                gimp_item_get_image(drawable->drawable_id) ) );
-
-        // Initialize destination pixel region with drawable
-        // TRUE,  TRUE  : region will be used to write to the shadow tiles
-        //                i.e. make changes that will be written back to source tiles
-        gimp_pixel_rgn_init (&dest_rgn,
-                             resized_drawable,
-                             0, 0,
-                             width * scale_factor,
-                             height * scale_factor,
-                             TRUE, TRUE);
-
-        // Copy the previously rendered scaled output buffer
-        // to the shadow image buffer in the drawable
-        gimp_pixel_rgn_set_rect (&dest_rgn,
-                                 (guchar *) p_scaledbuf,
-                                 0,0,
-                                 width * scale_factor,
-                                 height * scale_factor);
-
-
-        // Apply the changes to the image (merge shadow, update drawable)
-        gimp_drawable_flush (resized_drawable);
-        gimp_drawable_merge_shadow (resized_drawable->drawable_id, TRUE);
-        gimp_drawable_update (resized_drawable->drawable_id, 0, 0, width * scale_factor, height * scale_factor);
-
-        // Free the extra resized drawable
-        gimp_drawable_detach (resized_drawable);
-    }
-
-    // == END GROUPING
-    gimp_image_undo_group_end(gimp_item_get_image(drawable->drawable_id));
+    dialog_source_image_free_and_reset();
 }
-*/

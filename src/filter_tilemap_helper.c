@@ -252,6 +252,7 @@ printf("================================= Filter Main: run mode=%d  image_id = %
 
     gimp_drawable_detach (drawable);
 
+    dialog_free_resources();
     tilemap_free_resources();
 }
 

@@ -46,7 +46,7 @@ void overlay_redraw_invalidate(void) {
 
 
 void overlay_redraw_clear_flag(void) {
-    printf("OVERLAY: redraw flag cleared\n");
+    printf("Overlay: redraw flag cleared\n");
     redraw_required = false;
 }
 

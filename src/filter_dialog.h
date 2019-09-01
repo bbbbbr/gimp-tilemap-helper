@@ -24,4 +24,6 @@
     void tilemap_dialog_settings_get(PluginTileMapVals * plugin_config_vals);
 
     void tilemap_dialog_imageid_set(gint32 new_image_id);
+
+    void dialog_free_resources();
 #endif
