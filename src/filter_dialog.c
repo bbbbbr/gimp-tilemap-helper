@@ -804,8 +804,28 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
             else if (dest_bpp == BPP_RGBA) drawable_type = GIMP_RGBA_IMAGE;
             else     drawable_type = GIMP_RGB_IMAGE; // fallback to RGB // TODO: should handle this better...
 
-            // TODO: optional use gimp_preview_area_blend() to mix overlay and source image?
-            // TODO: optional: // gimp_preview_area_set_colormap ()
+            // TODO: move the painting into a function
+
+            // TODO: This rendering is OK, may this may need to be optimized
+            //
+            // TODO: The preview area also gets super slow when panning around with large upscaled images (~10x)
+            //       Seems like it's trying to redraw the entire image on a scroll signal, instead of just the
+            //       region visible in the viewport.
+            //
+            //   GtkScrolledWindow (scroll-child)->GtkViewport->GimpPreviewArea
+            //
+            //   Get the viewport offset and size (repeat for Horizontal):
+            //     GtkAdjustment * window_adjustment_v, * window_adjustment_h;
+            //      window_adjustment_v = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(preview_scaled_window));
+            //     gtk_adjustment_get_value(window_adjustment_v)
+            //     gtk_adjustment_get_page_size(window_adjustment_v)
+            //
+            // OR...
+            // 1. Create a drawable from the scaled output
+            // 2. Attach that drawable to a scrolled_preview_area handles panning well via gimp_drawable_preview_new()
+            // 3. Update the drawable as needed?
+            // * Might have trouble detaching the drawable during resizes?... (the api to update it has been removed)
+
 
             gimp_preview_area_draw (GIMP_PREVIEW_AREA (preview_scaled),
                                     0, 0,                  // x,y
