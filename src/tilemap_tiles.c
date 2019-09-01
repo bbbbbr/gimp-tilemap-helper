@@ -42,21 +42,7 @@ int32_t tile_register_new(tile_data * p_src_tile, tile_set_data * tile_set) {
                    p_src_tile->p_img_raw,
                    p_src_tile->raw_size_bytes);
 
-            // TODO: DON'T ENCODE - just keep raw (above), so always increment
             tile_set->tile_count++;
-/*
-
-            // Copy encoded tile data into tile buffer
-            tile_encode(&(tile_set->tiles[tile_id]),
-                        BIN_MODE_SNESGB_2BPP);
-
-            if (tile_set->tiles[tile_id].encoded_size_bytes) {
-                // Move to new tile
-                tile_set->tile_count++;
-
-            } else // encoding failed
-                tile_id = TILE_ID_FAILED_ENCODE;
-*/
 
         } else // malloc failed
             tile_id = TILE_ID_OUT_OF_SPACE;

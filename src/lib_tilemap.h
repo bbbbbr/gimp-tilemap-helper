@@ -11,7 +11,7 @@
 #ifndef LIB_TILEMAP_HEADER
 #define LIB_TILEMAP_HEADER
 
-    #define TILES_MAX_DEFAULT 4096
+    #define TILES_MAX_DEFAULT 8096
 
     #define TILE_WIDTH_DEFAULT  8
     #define TILE_HEIGHT_DEFAULT 8
@@ -40,7 +40,7 @@
         uint16_t map_width;
         uint16_t map_height;
         uint32_t size;
-        uint8_t * tile_id_list; // TODO: this was int32_t .. WHY?
+        uint32_t * tile_id_list; // if TILES_MAX_DEFAULT > 255, this must be larger than uint8_t
     } tile_map_data;
 
 
@@ -66,6 +66,10 @@
         tile_data tiles[TILES_MAX_DEFAULT];
     } tile_set_data;
 
+
+    void tilemap_recalc_invalidate(void);
+    void tilemap_recalc_clear_flag(void);
+    int tilemap_recalc_needed(void);
 
     void           tilemap_free_resources();
     static int32_t check_dimensions_valid(image_data * p_src_img, int tile_width, int tile_height);

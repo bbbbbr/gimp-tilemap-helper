@@ -12,6 +12,7 @@
 
 #include "scale.h"
 #include "scaler_nearestneighbor.h"
+#include "benchmark.h"
 
 static scaled_output_info scaled_output;
 static gint scale_factor;
@@ -93,6 +94,8 @@ scaled_output_info * scaled_info_get(void) {
 // Used to clear output caching and trigger a redraw
 //
 void scaled_output_invalidate() {
+
+    printf("Scale: Invalidated\n");
     scaled_output.valid_image = FALSE;
 }
 
@@ -109,8 +112,22 @@ gint scaled_output_check_reapply_scale() {
     // If either the scale factor changed or there is no valid
     // image rendered at the moment, then signal TRUE to indicate
     // scaling should be re-applied
-    return ((scaled_output.scale_factor != scale_factor) ||
-            (scaled_output.valid_image == FALSE));
+
+    // printf("Scale: Check Reapply -> scale cached/new (%d/%d), valid=%d\n",
+    //         scaled_output.scale_factor, scale_factor,
+    //         scaled_output.valid_image);
+
+    if ((scaled_output.scale_factor != scale_factor) ||
+        (scaled_output.valid_image == FALSE)) {
+
+        printf("Scale: Check Reapply -> *Required = YES* : scale cached/new (%d/%d), valid=%d\n",
+               scaled_output.scale_factor, scale_factor,
+               scaled_output.valid_image);
+
+        return TRUE;
+    }
+    else
+        return FALSE;
 }
 
 
@@ -120,6 +137,14 @@ gint scaled_output_check_reapply_scale() {
 //
 void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_new)
 {
+
+    printf("Scale: Check Realloc : (%d/%d) (%d/%d) (%d/%d) (%d/%d) (%ld/%d)..  ",
+        scaled_output.bpp          , bpp_new,
+        scaled_output.width        , width_new  * scale_factor,
+        scaled_output.height       , height_new * scale_factor,
+        scaled_output.scale_factor , scale_factor,
+        scaled_output.size_bytes   , scaled_output.width * scaled_output.height * scaled_output.bpp);
+
     if ((scale_factor                != scaled_output.scale_factor) ||
         ((width_new  * scale_factor) != scaled_output.width) ||
         ((height_new * scale_factor) != scaled_output.height) ||
@@ -139,12 +164,29 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
             scaled_output.p_scaledbuf = NULL;
         }
 
-        // 32 bit to ensure alignment, divide size since it's in BYTES
-        scaled_output.p_scaledbuf = (uint8_t *) g_new (guint8, scaled_output.size_bytes);
+        if (scaled_output.p_overlaybuf) {
+            g_free(scaled_output.p_overlaybuf);
+            scaled_output.p_overlaybuf = NULL;
+        }
+
+        // Allocate a working buffer to copy the source image into
+        // NOTE: Always RGBA 4 bytes per pixel to ensure  32 bit alignment
+        // * Instead of scaled_output.size_bytes (may be 3 or 4 bpp)... always use 4BPP
+
+        // g_new allocation here is in u32, so no need to multiply by * BYTE_SIZE_RGBA_4BPP
+        scaled_output.p_scaledbuf  = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
+        scaled_output.p_overlaybuf = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
+        // scaled_output.p_scaledbuf = (uint8_t *) g_new (guint8, scaled_output.width
+        //                                                        * scaled_output.height
+        //                                                        * scaled_output.bpp);
 
         // Invalidate the image
         scaled_output.valid_image = FALSE;
+
+        printf("Reallocated. Valid (scaled image) -> to 0 (false)\n");
     }
+    else
+        printf("No Change\n");
 }
 
 
@@ -180,26 +222,41 @@ void scale_apply(uint8_t * p_srcbuf, uint8_t * p_destbuf,
     if ((p_srcbuf == NULL) || (p_destbuf == NULL))
         return;
 
-printf("Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor, bpp, scaled_output.valid_image);
+printf("Scale: Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor, bpp, scaled_output.valid_image);
 
     if (scale_factor) {
 
         switch(bpp) {
             case BPP_RGB:
-            case BPP_RGBA:
                 // Upscale by a factor of N from source (sp) to dest (dp)
+                printf("Scale: Start -> RGB  ");
+                benchmark_start();
                 scaler_nearest_bpp_rgb(p_srcbuf, p_destbuf,
                                        width, height,
                                        scale_factor, bpp);
+                benchmark_elapsed();
+                break;
+
+            case BPP_RGBA:
+                // Upscale by a factor of N from source (sp) to dest (dp)
+                printf("Scale: Start -> RGBA  ");
+                benchmark_start();
+                scaler_nearest_bpp_rgba((uint32_t*)p_srcbuf, (uint32_t*)p_destbuf,
+                                       width, height,
+                                       scale_factor, bpp);
+                benchmark_elapsed();
                 break;
 
             case BPP_INDEXED:
             case BPP_INDEXEDA:
                 // Upscale by a factor of N from source (sp) to dest (dp)
+                printf("Scale: Start -> INDEXED/A  ");
+                benchmark_start();
                 scaler_nearest_bpp_indexed(p_srcbuf, p_destbuf,
                                            width, height,
                                            scale_factor, bpp,
                                            p_cmap_buf, cmap_num_colors);
+                benchmark_elapsed();
                                 break;
         }
 
@@ -218,10 +275,15 @@ printf("Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor, bpp, 
 //
 void scale_release_resources(void) {
 
-  if (scaled_output.p_scaledbuf) {
-      g_free(scaled_output.p_scaledbuf);
-      scaled_output.p_scaledbuf = NULL;
-  }
+    if (scaled_output.p_scaledbuf) {
+        g_free(scaled_output.p_scaledbuf);
+        scaled_output.p_scaledbuf = NULL;
+    }
+
+    if (scaled_output.p_overlaybuf) {
+        g_free(scaled_output.p_overlaybuf);
+        scaled_output.p_overlaybuf = NULL;
+    }
 }
 
 
@@ -237,3 +299,4 @@ void scale_init(void) {
     // Now set the default scaler
     scale_factor = SCALE_FACTOR_DEFAULT;
  }
+
