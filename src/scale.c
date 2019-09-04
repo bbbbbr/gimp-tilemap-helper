@@ -8,7 +8,7 @@
 //
 // ========================
 
-
+#include <stdlib.h>
 
 #include "scale.h"
 #include "scaler_nearestneighbor.h"
@@ -152,12 +152,11 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
         (scaled_output.p_scaledbuf == NULL)) {
 
         // Update the buffer size and re-allocate.
-        // TODO: delete comment--- The x uint32_t is for RGBA buffer size
         scaled_output.bpp          = bpp_new;
         scaled_output.width        = width_new  * scale_factor;
         scaled_output.height       = height_new * scale_factor;
         scaled_output.scale_factor = scale_factor;
-        scaled_output.size_bytes  = scaled_output.width * scaled_output.height * scaled_output.bpp; // BYTE_SIZE_RGBA_4BPP;
+        scaled_output.size_bytes  = scaled_output.width * scaled_output.height * scaled_output.bpp;
 
         if (scaled_output.p_scaledbuf) {
             g_free(scaled_output.p_scaledbuf);
@@ -169,16 +168,12 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
             scaled_output.p_overlaybuf = NULL;
         }
 
-        // Allocate a working buffer to copy the source image into
-        // NOTE: Always RGBA 4 bytes per pixel to ensure  32 bit alignment
-        // * Instead of scaled_output.size_bytes (may be 3 or 4 bpp)... always use 4BPP
-
+        // Allocate a working buffer to copy the source image into, 32 bit aligned
+        scaled_output.p_scaledbuf  = aligned_alloc(sizeof(uint32_t), scaled_output.size_bytes);
+        scaled_output.p_overlaybuf = aligned_alloc(sizeof(uint32_t), scaled_output.size_bytes);
         // g_new allocation here is in u32, so no need to multiply by * BYTE_SIZE_RGBA_4BPP
-        scaled_output.p_scaledbuf  = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
-        scaled_output.p_overlaybuf = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
-        // scaled_output.p_scaledbuf = (uint8_t *) g_new (guint8, scaled_output.width
-        //                                                        * scaled_output.height
-        //                                                        * scaled_output.bpp);
+        // scaled_output.p_scaledbuf  = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
+        // scaled_output.p_overlaybuf = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
 
         // Invalidate the image
         scaled_output.valid_image = FALSE;
@@ -217,7 +212,8 @@ void scaled_output_init(void)
 void scale_apply(uint8_t * p_srcbuf, uint8_t * p_destbuf,
                  gint bpp,
                  gint width, gint height,
-                 uint8_t * p_cmap_buf, int cmap_num_colors) {
+                 uint8_t * p_cmap_buf, gint cmap_num_colors,
+                 gint dest_bpp) {
 
     if ((p_srcbuf == NULL) || (p_destbuf == NULL))
         return;
@@ -255,7 +251,8 @@ printf("Scale: Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor
                 scaler_nearest_bpp_indexed(p_srcbuf, p_destbuf,
                                            width, height,
                                            scale_factor, bpp,
-                                           p_cmap_buf, cmap_num_colors);
+                                           p_cmap_buf, cmap_num_colors,
+                                           dest_bpp);
                 benchmark_elapsed();
                                 break;
         }
@@ -275,15 +272,14 @@ printf("Scale: Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor
 //
 void scale_release_resources(void) {
 
-    if (scaled_output.p_scaledbuf) {
-        g_free(scaled_output.p_scaledbuf);
-        scaled_output.p_scaledbuf = NULL;
-    }
+    if (scaled_output.p_scaledbuf)
+        free(scaled_output.p_scaledbuf);
+    scaled_output.p_scaledbuf = NULL;
 
-    if (scaled_output.p_overlaybuf) {
-        g_free(scaled_output.p_overlaybuf);
-        scaled_output.p_overlaybuf = NULL;
-    }
+
+    if (scaled_output.p_overlaybuf)
+        free(scaled_output.p_overlaybuf);
+    scaled_output.p_overlaybuf = NULL;
 }
 
 

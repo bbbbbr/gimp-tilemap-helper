@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <libgimp/gimp.h>
 #include <libgimp/gimpui.h>
@@ -40,6 +41,8 @@ static gint dialog_source_colormap_load(GimpDrawable * drawable);
 
 static void on_scaled_preview_mouse_exited(GtkWidget * window, gpointer callback_data);
 static void on_scaled_preview_mouse_moved(GtkWidget * window, gpointer callback_data);
+static void on_scaled_preview_mouse_clicked(GtkWidget * window, gpointer callback_data);
+
 static void on_setting_scale_spinbutton_changed(GtkSpinButton *, gpointer);
 static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
 static void on_setting_overlay_checkbutton_changed(GtkToggleButton *, gpointer);
@@ -62,7 +65,9 @@ gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
 static void tilemap_calculate();
 
 static void tilemap_render_overlay();
+
 static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc);
+static void tilemap_preview_highlight_tiles_on_mouseclick(gint x, gint y, GtkAllocation widget_alloc);
 
 
 const gchar * const finalbpp_strs[]          = { "Src Image", "1", "2", "3", "4", "8", "16", "24", "32"};
@@ -73,6 +78,7 @@ const gchar * const srcbpp_dialogtitle_str[] = {" ", "8 bits/pixel, Indexed", "1
 
 // Widget for displaying the upscaled image preview
 static GtkWidget * preview_scaled;
+GtkWidget * scaled_preview_window;
 static GtkWidget * tile_info_display;
 static GtkWidget * memory_info_display;
 static GtkWidget * mouse_hover_display;
@@ -143,7 +149,7 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
     GtkWidget * dialog;
     GtkWidget * main_vbox;
 
-    GtkWidget * scaled_preview_window;
+//    GtkWidget * scaled_preview_window;
 
     GtkWidget * setting_table;
     GtkWidget * setting_preview_label;
@@ -481,6 +487,11 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
     g_signal_connect (preview_scaled, "motion-notify-event",
                       G_CALLBACK (on_scaled_preview_mouse_moved), NULL);
 
+// scaled_preview_window
+    gtk_widget_add_events(scaled_preview_window, GDK_BUTTON_PRESS);
+    g_signal_connect (scaled_preview_window, "button-press-event",
+                      G_CALLBACK (on_scaled_preview_mouse_clicked), NULL);
+
 
     // Add event for when the mouse leaves the window (clear info display)
     gtk_widget_add_events(preview_scaled, GDK_LEAVE_NOTIFY_MASK);
@@ -535,6 +546,9 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
     g_signal_connect_swapped (setting_flattened_image_checkbutton, "toggled",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 
+    g_signal_connect_swapped (scaled_preview_window, "button-press-event",
+                              G_CALLBACK(tilemap_dialog_processing_run), drawable);
+
     g_signal_connect (action_maptoclipboard_button, "clicked",
                       G_CALLBACK (on_action_maptoclipboard_button_clicked), NULL);
 }
@@ -565,6 +579,20 @@ static void on_scaled_preview_mouse_moved(GtkWidget * widget, gpointer callback_
     tilemap_preview_display_tilenum_on_mouseover(x,y, allocation);
 }
 
+
+static void on_scaled_preview_mouse_clicked(GtkWidget * widget, gpointer callback_data) {
+
+    GtkAllocation allocation;
+    gint x,y;
+
+    // Note: gtk_widget_get_pointer() is deprecated, eventually use...
+    //   -> gdk_window_get_device_position (window, mouse, &x, &y, NULL);
+    gtk_widget_get_pointer(preview_scaled, &x, &y);
+    gtk_widget_get_allocation (preview_scaled, &allocation);
+
+    // Highlight all tiles that match the one clicked by the mouse
+    tilemap_preview_highlight_tiles_on_mouseclick(x,y, allocation);
+}
 
 
 // Handler for "changed" signal of SCALER MODE combo box
@@ -679,20 +707,15 @@ static int dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint w
 
 int dialog_calc_dest_bpp(int src_bpp) {
 
-/*
-    // Force all (scaled / preview / overlay) output to 4BPP RGBA for speed
-    return BPP_RGBA;
-*/
     // If image is INDEXED or INDEXED ALPHA
     // Then promote dest image:
     // * 1 bpp -> RGB 3 bpp,
     // * 2 bpp (alpha) -> RGBA 4bpp
+
     if (src_bpp <= 2)
         return (3 + (src_bpp - 1));
     else
         return src_bpp;
-
-
 }
 
 /*******************************************************/
@@ -764,7 +787,8 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
                         scaled_output->p_scaledbuf,
                         app_image.bytes_per_pixel,
                         app_image.width, app_image.height,
-                        app_colors.pal, app_colors.color_count);
+                        app_colors.pal, app_colors.color_count,
+                        dest_bpp);
 
             // Queue a tile map overlay redraw since the scaled output changed
             overlay_redraw_invalidate();
@@ -903,9 +927,8 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 
 static void dialog_source_image_free_and_reset() {
 
-    if (app_image.p_img_data) {
-        g_free(app_image.p_img_data);
-    }
+    if (app_image.p_img_data)
+        free(app_image.p_img_data);
 
     app_image.p_img_data = NULL;
 
@@ -958,10 +981,9 @@ static gint dialog_source_image_load(GimpDrawable * drawable_layer) {
     app_image.height     = height;
     app_image.size       = app_image.width * app_image.height * app_image.bytes_per_pixel;
 
-    // TODO: Source image should be allocated with 32 bit alignment
-    // source_image.size = source_image.width * source_image.height * BYTE_SIZE_RGBA_4BPP;
-    // p_srcbuf = (uint8_t *) g_new (guint32, srcbuf_size / BYTE_SIZE_RGBA_4BPP);
-    app_image.p_img_data = (uint8_t *) g_new (guint32, app_image.size);
+    // Source image buffer allocated with 32 bit alignment
+    // app_image.p_img_data = (uint8_t *) g_new (guint32, app_image.width * app_image.height);
+    app_image.p_img_data = aligned_alloc(sizeof(uint32_t), app_image.size);
 
     // FALSE, FALSE : region will be used to read the actual drawable data
     // Initialize source pixel region with drawable
@@ -1216,7 +1238,7 @@ static void tilemap_render_overlay() {
 
 
 
-static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc) {
+static void tilemap_preview_highlight_tiles_on_mouseclick(gint x, gint y, GtkAllocation widget_alloc) {
 
     //
     #define PREVIEW_WIDGET_BORDER_X 1
@@ -1225,6 +1247,67 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
 
     guint32 tile_num;
     guint32 tile_x, tile_y, tile_idx;
+    guint32 img_x, img_y;
+
+    scaled_output_info * scaled_output;
+
+    tile_map_data * p_map;
+    tile_set_data * p_tile_set;
+
+    // Only display if there's valid data available (no recalc queued)
+    if (!(scaled_output_check_reapply_scale() || tilemap_recalc_needed() )) {
+
+            p_map      = tilemap_get_map();
+//            p_tile_set = tilemap_get_tile_set();
+
+            scaled_output = scaled_info_get();
+
+            // * Mouse location is in preview window coordinates
+            // * Scaled preview image may be smaller and centered in preview window
+            // So: position on image = mouse.x - (alloc.width - scaled_output->width) / 2,
+
+            img_x = x - ((widget_alloc.width - scaled_output->width) / 2) - PREVIEW_WIDGET_BORDER_X;
+            img_y = y - ((widget_alloc.height - scaled_output->height) / 2) - PREVIEW_WIDGET_BORDER_Y;
+
+        // Only process if it's within the bounds of the actual preview area
+        if ((img_x >= 0) && (img_x < scaled_output->width) &&
+            (img_y >= 0) && (img_y < scaled_output->height)) {
+
+            if (p_tile_set->tile_count > 0) {
+
+                // Get position on tile map and relevant info for tile
+                tile_x = (img_x / scaled_output->scale_factor) / p_map->tile_width;
+                tile_y = (img_y / scaled_output->scale_factor) / p_map->tile_height;
+
+                tile_idx = tile_x + (tile_y * p_map->width_in_tiles );
+
+                tile_num = p_map->tile_id_list[tile_idx];
+
+                tilemap_overlay_set_highlight_tile(tile_num);
+
+                overlay_redraw_invalidate();
+            }
+
+        } else {
+            // Click outside of image area, clear highlight
+            tilemap_overlay_clear_highlight_tile();
+            overlay_redraw_invalidate();
+        }
+    }
+
+}
+
+
+
+static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc) {
+
+    //
+    #define PREVIEW_WIDGET_BORDER_X 1
+    #define PREVIEW_WIDGET_BORDER_Y 2
+
+
+    guint32 tile_id;
+    guint32 map_tile_x, map_tile_y, map_tile_idx;
     guint32 img_x, img_y;
 
     scaled_output_info * scaled_output;
@@ -1254,22 +1337,24 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
             if (p_tile_set->tile_count > 0) {
 
                 // Get position on tile map and relevant info for tile
-                tile_x = (img_x / scaled_output->scale_factor) / p_map->tile_width;
-                tile_y = (img_y / scaled_output->scale_factor) / p_map->tile_height;
+                map_tile_x = (img_x / scaled_output->scale_factor) / p_map->tile_width;
+                map_tile_y = (img_y / scaled_output->scale_factor) / p_map->tile_height;
 
-                tile_idx = tile_x + (tile_y * p_map->width_in_tiles );
+                map_tile_idx = map_tile_x + (map_tile_y * p_map->width_in_tiles );
 
-                tile_num = p_map->tile_id_list[tile_idx];
+                tile_id = p_map->tile_id_list[map_tile_idx];
 
                 gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
                             g_markup_printf_escaped("  Image x,y: (%4d ,%-4d)"
-                                                    "        Tile x,y: (%4d , %-4d)"
-                                                    "        Tile index: %-8d"
+                                                    "    Map Tile x,y: (%4d , %-4d)"
+                                                    "    Map Tile index: %-8d"
                                                     "        Tile ID: %-8d"
+                                                    "   Map Entries: %-8d"
                                                     , img_x / scaled_output->scale_factor
                                                     , img_y / scaled_output->scale_factor
-                                                    , tile_x, tile_y
-                                                    , tile_idx, tile_num
+                                                    , map_tile_x, map_tile_y
+                                                    , map_tile_idx, tile_id
+                                                    , p_tile_set->tiles[tile_id].map_entry_count
                                                     ) );
             }
             else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),

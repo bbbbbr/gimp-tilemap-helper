@@ -52,6 +52,7 @@
         uint16_t  raw_height;
         uint32_t  raw_size_bytes;     // size in bytes // TODO
         uint32_t  encoded_size_bytes; // size in bytes
+        uint32_t  map_entry_count;
         uint8_t * p_img_raw;
         uint8_t * p_img_encoded;
     } tile_data;
