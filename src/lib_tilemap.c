@@ -35,9 +35,7 @@ int tilemap_recalc_needed(void) {
     return tilemap_needs_recalc;
 }
 
-// TODO: Fix mixing of global and locals. Simplify code
-
-// TODO: support configurable tile size
+// TODO: some mixing of global and locals. Simplify code
 int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height) {
 
     // Tile Map
@@ -94,15 +92,11 @@ unsigned char tilemap_export_process(image_data * p_src_img, int tile_width, int
 }
 
 
-
 unsigned char process_tiles(image_data * p_src_img) {
 
     int         img_x, img_y;
 
-    uint32_t  * tile_buf_intermediary; // Needs to be 32 bit aligned for hash function
     tile_data   tile;
-    uint32_t    tile_size_bytes;
-    uint32_t    tile_size_bytes_hash_padding; // Make sure hashed data is multiple of 32 bits
     uint32_t    img_buf_offset;
     int32_t     tile_id;
     int32_t     map_slot;
@@ -113,25 +107,8 @@ benchmark_start();
 
     map_slot = 0;
 
-    // TODO: why isn't this using pre-initialized values in tile_set ?
-    tile.raw_bytes_per_pixel = p_src_img->bytes_per_pixel;
-    tile.raw_width           = tile_map.tile_width;
-    tile.raw_height          = tile_map.tile_height;
-    tile.raw_size_bytes      = tile.raw_height * tile.raw_width * tile.raw_bytes_per_pixel;
-
-    // Make sure buffer is an even multiple of 32 bits (for hash function)
-    tile_size_bytes_hash_padding = tile_size_bytes % sizeof(uint32_t);
-
-    // Allocate buffer for temporary working tile raw image
-    // Use a uint32 for initial allocation, then hand it off to the uint8
-    // TODO: fix this hack. rumor is that in PC world uint8 buffers always get 32 bit alligned?
-    tile_buf_intermediary = malloc((tile_size_bytes + tile_size_bytes_hash_padding) / sizeof(uint32_t));
-    tile.p_img_raw        = (uint8_t *)tile_buf_intermediary;
-
-    // Make sure padding bytes are zeroed
-    memset(tile.p_img_raw, 0x00, tile_size_bytes_hash_padding);
-
-
+    // Use pre-initialized values in from tilemap_initialize()
+    tile_initialize(&tile, &tile_map, &tile_set);
 
     if (tile.p_img_raw) {
 
@@ -171,18 +148,25 @@ benchmark_start();
                     benchmark_slot_update(3);
 
                     if (tile_id <= TILE_ID_OUT_OF_SPACE) {
-                        // Free using the original pointer, not tile.p_img_raw
-                        free(tile_buf_intermediary);
-                        tile_buf_intermediary = NULL;
+                        if (tile.p_img_raw) {
+                            free(tile.p_img_raw);
+                            tile.p_img_raw = NULL;
+                        }
                         printf("Tilemap: Process: FAIL -> Too Many Tiles\n");
                         return (false); // Ran out of tile space, exit
                     }
                 }
+                else {
+                    // Found an existing entry, increment the map entry count
+                    tile_set.tiles[tile_id].map_entry_count++;
+                    printf("Tilemap: increment %d to %d\n",tile_id, tile_set.tiles[tile_id].map_entry_count);
+                }
 
-                int32_t test;
-                test = tile_id;
+                tile_map.tile_id_list[map_slot] = tile_id; // = tile_id; // TODO: IMPORTANT, SOMETHING IS VERY WRONG
+//                int32_t test;
+//                test = tile_id;
 
-                tile_map.tile_id_list[map_slot] = test; // = tile_id; // TODO: IMPORTANT, SOMETHING IS VERY WRONG
+//                tile_map.tile_id_list[map_slot] = test; // = tile_id; // TODO: IMPORTANT, SOMETHING IS VERY WRONG
 
                 // printf("Map Slot %d: tile_id=%d tilemap[]=%d, %08lx\n",map_slot, tile_id, tile_map.tile_id_list[map_slot], tile.hash);
                 map_slot++;
@@ -198,9 +182,9 @@ benchmark_start();
     }
 
     // Free using the original pointer, not tile.p_img_raw
-    if (tile_buf_intermediary) {
-        free(tile_buf_intermediary);
-        tile_buf_intermediary = NULL;
+    if (tile.p_img_raw) {
+        free(tile.p_img_raw);
+        tile.p_img_raw = NULL;
     }
 
 benchmark_elapsed();

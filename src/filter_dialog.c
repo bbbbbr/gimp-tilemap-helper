@@ -1311,8 +1311,8 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
     #define PREVIEW_WIDGET_BORDER_Y 2
 
 
-    guint32 tile_num;
-    guint32 tile_x, tile_y, tile_idx;
+    guint32 tile_id;
+    guint32 map_tile_x, map_tile_y, map_tile_idx;
     guint32 img_x, img_y;
 
     scaled_output_info * scaled_output;
@@ -1342,22 +1342,24 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
             if (p_tile_set->tile_count > 0) {
 
                 // Get position on tile map and relevant info for tile
-                tile_x = (img_x / scaled_output->scale_factor) / p_map->tile_width;
-                tile_y = (img_y / scaled_output->scale_factor) / p_map->tile_height;
+                map_tile_x = (img_x / scaled_output->scale_factor) / p_map->tile_width;
+                map_tile_y = (img_y / scaled_output->scale_factor) / p_map->tile_height;
 
-                tile_idx = tile_x + (tile_y * p_map->width_in_tiles );
+                map_tile_idx = map_tile_x + (map_tile_y * p_map->width_in_tiles );
 
-                tile_num = p_map->tile_id_list[tile_idx];
+                tile_id = p_map->tile_id_list[map_tile_idx];
 
                 gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
                             g_markup_printf_escaped("  Image x,y: (%4d ,%-4d)"
-                                                    "        Tile x,y: (%4d , %-4d)"
-                                                    "        Tile index: %-8d"
+                                                    "    Map Tile x,y: (%4d , %-4d)"
+                                                    "    Map Tile index: %-8d"
                                                     "        Tile ID: %-8d"
+                                                    "   Map Entries: %-8d"
                                                     , img_x / scaled_output->scale_factor
                                                     , img_y / scaled_output->scale_factor
-                                                    , tile_x, tile_y
-                                                    , tile_idx, tile_num
+                                                    , map_tile_x, map_tile_y
+                                                    , map_tile_idx, tile_id
+                                                    , p_tile_set->tiles[tile_id].map_entry_count
                                                     ) );
             }
             else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),

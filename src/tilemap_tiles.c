@@ -10,6 +10,33 @@
 #include "tilemap_tiles.h"
 
 
+void tile_initialize(tile_data * p_tile, tile_map_data * p_tile_map, tile_set_data * p_tile_set) {
+
+    uint32_t  * tile_buf_intermediary; // Needs to be 32 bit aligned for hash function
+    uint32_t    tile_size_bytes;
+    uint32_t    tile_size_bytes_hash_padding; // Make sure hashed data is multiple of 32 bits
+
+    // Use pre-initialized values sourced from tilemap_initialize()
+    p_tile->raw_bytes_per_pixel = p_tile_set->tile_bytes_per_pixel;
+    p_tile->raw_width           = p_tile_map->tile_width;
+    p_tile->raw_height          = p_tile_map->tile_height;
+    p_tile->raw_size_bytes      = p_tile->raw_height * p_tile->raw_width * p_tile->raw_bytes_per_pixel;
+    p_tile->map_entry_count     = 0;
+
+    // Make sure buffer is an even multiple of 32 bits (for hash function)
+    tile_size_bytes_hash_padding = tile_size_bytes % sizeof(uint32_t);
+
+    // Allocate buffer for temporary working tile raw image
+    // Use a uint32 for initial allocation, then hand it off to the uint8
+    // TODO: fix this hack. rumor is that in PC world uint8 buffers always get 32 bit alligned?
+    tile_buf_intermediary = malloc((tile_size_bytes + tile_size_bytes_hash_padding) / sizeof(uint32_t));
+    p_tile->p_img_raw     = (uint8_t *)tile_buf_intermediary;
+
+    // Make sure padding bytes are zeroed
+    memset(p_tile->p_img_raw, 0x00, tile_size_bytes_hash_padding);
+}
+
+
 int32_t tile_register_new(tile_data * p_src_tile, tile_set_data * tile_set) {
 
     int32_t     tile_id;
@@ -31,6 +58,7 @@ int32_t tile_register_new(tile_data * p_src_tile, tile_set_data * tile_set) {
         new_tile->raw_bytes_per_pixel = p_src_tile->raw_bytes_per_pixel;
         new_tile->raw_width           = p_src_tile->raw_width;
         new_tile->raw_height          = p_src_tile->raw_height;
+        new_tile->map_entry_count     = 1; // Tile got created since it was needed, so will be used at least once
 
         // Copy raw tile data into tile image buffer
         new_tile->raw_size_bytes = p_src_tile->raw_size_bytes;
