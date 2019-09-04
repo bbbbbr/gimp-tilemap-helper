@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <libgimp/gimp.h>
 #include <libgimp/gimpui.h>
@@ -930,9 +931,8 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 
 static void dialog_source_image_free_and_reset() {
 
-    if (app_image.p_img_data) {
-        g_free(app_image.p_img_data);
-    }
+    if (app_image.p_img_data)
+        free(app_image.p_img_data);
 
     app_image.p_img_data = NULL;
 
@@ -985,10 +985,9 @@ static gint dialog_source_image_load(GimpDrawable * drawable_layer) {
     app_image.height     = height;
     app_image.size       = app_image.width * app_image.height * app_image.bytes_per_pixel;
 
-    // TODO: Source image should be allocated with 32 bit alignment
-    // source_image.size = source_image.width * source_image.height * BYTE_SIZE_RGBA_4BPP;
-    // p_srcbuf = (uint8_t *) g_new (guint32, srcbuf_size / BYTE_SIZE_RGBA_4BPP);
-    app_image.p_img_data = (uint8_t *) g_new (guint32, app_image.size);
+    // Source image buffer allocated with 32 bit alignment
+    // app_image.p_img_data = (uint8_t *) g_new (guint32, app_image.width * app_image.height);
+    app_image.p_img_data = aligned_alloc(sizeof(uint32_t), app_image.size);
 
     // FALSE, FALSE : region will be used to read the actual drawable data
     // Initialize source pixel region with drawable

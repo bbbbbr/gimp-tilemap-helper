@@ -8,7 +8,7 @@
 //
 // ========================
 
-
+#include <stdlib.h>
 
 #include "scale.h"
 #include "scaler_nearestneighbor.h"
@@ -170,15 +170,18 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
         }
 
         // Allocate a working buffer to copy the source image into
-        // NOTE: Always RGBA 4 bytes per pixel to ensure  32 bit alignment
+        // NOTE: Always RGBA 4 bytes per pixel to ensure 32 bits available
         // * Instead of scaled_output.size_bytes (may be 3 or 4 bpp)... always use 4BPP
+        //  TODO: UPDATE: the 32 bit pipeline requirement no longer holds true... right?
 
         // g_new allocation here is in u32, so no need to multiply by * BYTE_SIZE_RGBA_4BPP
-        scaled_output.p_scaledbuf  = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
-        scaled_output.p_overlaybuf = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
-        // scaled_output.p_scaledbuf = (uint8_t *) g_new (guint8, scaled_output.width
-        //                                                        * scaled_output.height
-        //                                                        * scaled_output.bpp);
+        scaled_output.p_scaledbuf  = aligned_alloc(sizeof(uint32_t), scaled_output.width * scaled_output.height * BYTE_SIZE_RGBA_4BPP);
+        scaled_output.p_overlaybuf = aligned_alloc(sizeof(uint32_t), scaled_output.width * scaled_output.height * BYTE_SIZE_RGBA_4BPP);
+        // scaled_output.p_scaledbuf  = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
+        // scaled_output.p_overlaybuf = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
+        // // scaled_output.p_scaledbuf = (uint8_t *) g_new (guint8, scaled_output.width
+        // //                                                        * scaled_output.height
+        // //                                                        * scaled_output.bpp);
 
         // Invalidate the image
         scaled_output.valid_image = FALSE;
@@ -275,15 +278,14 @@ printf("Scale: Scaling image now: %dx, bpp=%d, valid image = %d\n", scale_factor
 //
 void scale_release_resources(void) {
 
-    if (scaled_output.p_scaledbuf) {
-        g_free(scaled_output.p_scaledbuf);
-        scaled_output.p_scaledbuf = NULL;
-    }
+    if (scaled_output.p_scaledbuf)
+        free(scaled_output.p_scaledbuf);
+    scaled_output.p_scaledbuf = NULL;
 
-    if (scaled_output.p_overlaybuf) {
-        g_free(scaled_output.p_overlaybuf);
-        scaled_output.p_overlaybuf = NULL;
-    }
+
+    if (scaled_output.p_overlaybuf)
+        free(scaled_output.p_overlaybuf);
+    scaled_output.p_overlaybuf = NULL;
 }
 
 

@@ -148,10 +148,10 @@ benchmark_start();
                     benchmark_slot_update(3);
 
                     if (tile_id <= TILE_ID_OUT_OF_SPACE) {
-                        if (tile.p_img_raw) {
+                        if (tile.p_img_raw)
                             free(tile.p_img_raw);
-                            tile.p_img_raw = NULL;
-                        }
+                        tile.p_img_raw = NULL;
+                        tilemap_free_resources();
                         printf("Tilemap: Process: FAIL -> Too Many Tiles\n");
                         return (false); // Ran out of tile space, exit
                     }
@@ -159,7 +159,6 @@ benchmark_start();
                 else {
                     // Found an existing entry, increment the map entry count
                     tile_set.tiles[tile_id].map_entry_count++;
-                    printf("Tilemap: increment %d to %d\n",tile_id, tile_set.tiles[tile_id].map_entry_count);
                 }
 
                 tile_map.tile_id_list[map_slot] = tile_id; // = tile_id; // TODO: IMPORTANT, SOMETHING IS VERY WRONG
@@ -174,18 +173,14 @@ benchmark_start();
         }
 
     } else { // else if (tile.p_img_raw) {
-        if (tile_map.tile_id_list) {
-            free(tile_map.tile_id_list);
-            tile_map.tile_id_list = NULL;
-        }
+        tilemap_free_resources();
         return (false); // Failed to allocate buffer, exit
     }
 
     // Free using the original pointer, not tile.p_img_raw
-    if (tile.p_img_raw) {
+    if (tile.p_img_raw)
         free(tile.p_img_raw);
-        tile.p_img_raw = NULL;
-    }
+    tile.p_img_raw = NULL;
 
 benchmark_elapsed();
 benchmark_slot_printall();
@@ -218,16 +213,17 @@ void tilemap_free_resources() {
 
         if (tile_set.tiles[c].p_img_encoded)
             free(tile_set.tiles[c].p_img_encoded);
+        tile_set.tiles[c].p_img_encoded = NULL;
 
         if (tile_set.tiles[c].p_img_raw)
             free(tile_set.tiles[c].p_img_raw);
+        tile_set.tiles[c].p_img_raw = NULL;
     }
 
     // Free tile map data
-    if (tile_map.tile_id_list) {
+    if (tile_map.tile_id_list)
         free(tile_map.tile_id_list);
-        tile_map.tile_id_list = NULL;
-    }
+    tile_map.tile_id_list = NULL;
 
 }
 
