@@ -1307,6 +1307,7 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
     guint32 tile_id;
     guint32 map_tile_x, map_tile_y, map_tile_idx;
     guint32 img_x, img_y;
+    uint8_t r,g,b;
 
     scaled_output_info * scaled_output;
 
@@ -1342,17 +1343,21 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
 
                 tile_id = p_map->tile_id_list[map_tile_idx];
 
+                scale_output_get_rgb_at_xy(img_x, img_y, &r, &g, &b);
+
                 gtk_label_set_markup(GTK_LABEL(mouse_hover_display),
-                            g_markup_printf_escaped("  Image x,y: (%4d ,%-4d)"
-                                                    "    Map Tile x,y: (%4d , %-4d)"
-                                                    "    Map Tile index: %-8d"
-                                                    "        Tile ID: %-8d"
-                                                    "   Map Entries: %-8d"
+                            g_markup_printf_escaped(" x,y: (%4d ,%-4d)"
+                                                    "     Map Tile x,y: (%4d , %-4d)"
+                                                    "     Map Tile #: %-8d"
+                                                    "    Tile ID: %d (%d uses)"
+                                                    "       RGB(%d,%d,%d)"
                                                     , img_x / scaled_output->scale_factor
                                                     , img_y / scaled_output->scale_factor
                                                     , map_tile_x, map_tile_y
-                                                    , map_tile_idx, tile_id
+                                                    , map_tile_idx
+                                                    , tile_id
                                                     , p_tile_set->tiles[tile_id].map_entry_count
+                                                    , r, g, b
                                                     ) );
             }
             else gtk_label_set_markup(GTK_LABEL(mouse_hover_display),

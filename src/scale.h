@@ -50,6 +50,8 @@
     void scale_release_resources(void);
     void scale_apply(uint8_t *, uint8_t *, gint, gint, gint, uint8_t *, gint, gint);
 
+    void scale_output_get_rgb_at_xy(int, int, uint8_t *, uint8_t *, uint8_t *);
+
     scaled_output_info * scaled_info_get(void);
     void scaled_output_invalidate();
     gint scaled_output_check_reapply_scale();

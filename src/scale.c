@@ -203,6 +203,18 @@ void scaled_output_init(void)
 }
 
 
+void scale_output_get_rgb_at_xy(int x, int y, uint8_t * p_r, uint8_t * p_g, uint8_t * p_b) {
+    uint32_t offset;
+
+    offset = ((y * scaled_output.width) + x) * scaled_output.bpp;
+    if ((offset + 2) >= scaled_output.size_bytes)
+        return; // beyond range of image buffer
+
+    *p_r = *(scaled_output.p_scaledbuf + offset);
+    *p_g = *(scaled_output.p_scaledbuf + offset + 1);
+    *p_b = *(scaled_output.p_scaledbuf + offset + 2);
+}
+
 
 // scaler_apply
 //
