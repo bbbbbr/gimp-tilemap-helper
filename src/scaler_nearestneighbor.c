@@ -21,14 +21,10 @@ static const char TRUE  = 1;
 static const char FALSE = 0;
 // static const char BYTE_SIZE_RGBA_4BPP = 4; // RGBA 4BPP
 
-
-// TODO: should this always operate in RGBA so that overlay is easier to do?
-
-
-// For RGB and RGB+ALPHA
+// For RGB
 //
 // Upscale by a factor of N from source (sp) to dest (dp)
-// NOTE: Expects *dp to have a buffer size = width * height * (RGB or RGBA / 3 or 4 bytes)
+// NOTE: Expects *dp to have a buffer size = width * height * RGB 3 bytes
 //
 void scaler_nearest_bpp_rgb(uint8_t * sp, uint8_t * dp,
                        int Xres, int Yres,
@@ -79,10 +75,10 @@ void scaler_nearest_bpp_rgb(uint8_t * sp, uint8_t * dp,
 
 
 
-// For RGB and RGB+ALPHA
+// For RGB+ALPHA
 //
 // Upscale by a factor of N from source (sp) to dest (dp)
-// NOTE: Expects *dp to have a buffer size = width * height * (RGB or RGBA / 3 or 4 bytes)
+// NOTE: Expects *dp to have a buffer size = width * height * RGBA 4 bytes
 //
 void scaler_nearest_bpp_rgba(uint32_t * sp, uint32_t * dp,
                            int Xres, int Yres,
@@ -141,16 +137,12 @@ void scaler_nearest_bpp_indexed(uint8_t * sp, uint8_t * dp,
                        int scale_factor,
                        int src_bpp,
                        uint8_t * p_color_map,
-                       int num_colors)
+                       int num_colors,
+                       int dest_bpp)
 {
     int       x, y, sx; // , sb;
     long      line_width_scaled_bpp;
-    int       dest_bpp;
     int       color_index;
-
-    // TODO: Instead of recalculating here, pass in the pre-promoted bpp value?
-    // Promote Image: 1 bpp -> RGB 3 bpp, 2 bpp (alpha) -> RGBA 4bpp
-    dest_bpp = (3 + (src_bpp - 1));
 
     line_width_scaled_bpp = (Xres * scale_factor * dest_bpp);
 

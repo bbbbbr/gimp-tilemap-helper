@@ -48,7 +48,7 @@
 
     void scale_init(void);
     void scale_release_resources(void);
-    void scale_apply(uint8_t *, uint8_t *, gint, gint, gint, uint8_t *, int );
+    void scale_apply(uint8_t *, uint8_t *, gint, gint, gint, uint8_t *, gint, gint);
 
     scaled_output_info * scaled_info_get(void);
     void scaled_output_invalidate();

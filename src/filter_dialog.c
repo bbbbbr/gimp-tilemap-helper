@@ -707,20 +707,15 @@ static int dialog_scaled_preview_check_resize(GtkWidget * preview_scaled, gint w
 
 int dialog_calc_dest_bpp(int src_bpp) {
 
-/*
-    // Force all (scaled / preview / overlay) output to 4BPP RGBA for speed
-    return BPP_RGBA;
-*/
     // If image is INDEXED or INDEXED ALPHA
     // Then promote dest image:
     // * 1 bpp -> RGB 3 bpp,
     // * 2 bpp (alpha) -> RGBA 4bpp
+
     if (src_bpp <= 2)
         return (3 + (src_bpp - 1));
     else
         return src_bpp;
-
-
 }
 
 /*******************************************************/
@@ -792,7 +787,8 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
                         scaled_output->p_scaledbuf,
                         app_image.bytes_per_pixel,
                         app_image.width, app_image.height,
-                        app_colors.pal, app_colors.color_count);
+                        app_colors.pal, app_colors.color_count,
+                        dest_bpp);
 
             // Queue a tile map overlay redraw since the scaled output changed
             overlay_redraw_invalidate();
