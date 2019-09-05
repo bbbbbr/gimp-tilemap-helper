@@ -320,7 +320,6 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
         gtk_misc_set_alignment(GTK_MISC(setting_finalbpp_label), 1.0, 0.5f);
 
         setting_finalbpp_combo = gtk_combo_box_text_new ();
-        gtk_misc_set_alignment(GTK_MISC(setting_finalbpp_combo), 1.0f, 0.5f);
 
          // Load first entry: "Source Image" bpp setting with image mode displayed
          if ((drawable->bpp >=1) && (drawable->bpp < ARRAY_LEN(srcbpp_str)))
