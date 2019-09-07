@@ -48,6 +48,7 @@ static void on_setting_tilesize_spinbutton_changed(GtkSpinButton *, gint);
 static void on_setting_overlay_checkbutton_changed(GtkToggleButton *, gpointer);
 static void on_setting_finalbpp_combo_changed(GtkComboBox *, gpointer);
 static void on_setting_flattened_image_checkbutton_changed(GtkToggleButton *, gpointer);
+static void on_setting_checkflip_checkbutton_changed(GtkToggleButton *, gpointer);
 
 static void on_action_maptoclipboard_button_clicked(GtkButton *, gpointer);
 
@@ -74,6 +75,7 @@ const gchar * const finalbpp_strs[]          = { "Src Image", "1", "2", "3", "4"
 const gchar * const srcbpp_str[]             = {" ", "Source: 8", "Source: 16", "Source: 24", "Source: 32"};
 const gchar * const srcbpp_dialogtitle_str[] = {" ", "8 bits/pixel, Indexed", "16 bits/pixel, Indexed-A", "24 bits/pixel, RGB", "32 bits/pixel, RGB-A"};
 
+const gchar * const tile_flip_str[]          = { " ", ", flip: X", ", flip: Y", ", flip: X+Y" };
 
 
 // Widget for displaying the upscaled image preview
@@ -99,7 +101,7 @@ static GtkWidget * setting_tilesize_label;
 static GtkWidget * setting_tilesize_width_spinbutton;
 static GtkWidget * setting_tilesize_height_spinbutton;
 
-static GtkWidget * setting_checkmirror_checkbutton;
+static GtkWidget * setting_checkflip_checkbutton;
 static GtkWidget * setting_checkrotation_checkbutton;
 
 static GtkWidget * action_maptoclipboard_button;
@@ -112,33 +114,6 @@ static image_data      app_image;
 static color_data      app_colors;
 
 static gint32          image_id;
-
-/*
-Preview
-x Zoom [1]^
-x [x] Overlay
-
-Processing:
-[x] Deduplicate Tiles
-    [ ] Check Rotation
-    [ ] Check Mirroring
-
-Tiles:
-Width[ 8 ]
-Height[ 8 ]
-Size from Image Grid [ ]
-
-Offset:
-X[ 0 ]
-Y[ 0 ]
-
-Info:
-Tile W x H
-Image W x H
-Tile Map W x H
-Total Colors N / Max colors per tile N
-Color Mode: Indexed / Etc
-*/
 
 
 /*******************************************************/
@@ -292,8 +267,9 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
         gtk_box_pack_start (GTK_BOX (setting_tilesize_hbox), setting_tilesize_height_spinbutton, FALSE, FALSE, 0);
 
 
-        // Checkboxes for mirroring and rotation on tile deduplication
-        setting_checkmirror_checkbutton = gtk_check_button_new_with_label("Check Mirroring");
+        // Checkboxes for flipping on tile deduplication
+        setting_checkflip_checkbutton = gtk_check_button_new_with_label("Check Flip X/Y");
+        // TODO: and rotation...
         setting_checkrotation_checkbutton = gtk_check_button_new_with_label("Check Rotation");
 
         // Checkbox for whether to sample the source image as a single layer or flattened
@@ -363,7 +339,7 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
     gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_processing_label,                2, 3, 0, 1);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_label,              2, 3, 1, 2);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_tilesize_hbox,               2, 3, 2, 3);
-//        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkmirror_checkbutton,     2, 3, 3, 4);
+        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkflip_checkbutton,       2, 3, 3, 4);
 //        gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_checkrotation_checkbutton,   2, 3, 4, 5);
         gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_flattened_image_checkbutton,   2, 3, 4, 5);
 
@@ -458,6 +434,9 @@ void dialog_settings_apply_to_ui() {
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_overlay_grid_checkbutton),    dialog_settings.overlay_grid_enabled);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_overlay_tileids_checkbutton), dialog_settings.overlay_tileids_enabled);
 
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_checkflip_checkbutton),       dialog_settings.check_flip);
+
+
     gtk_combo_box_set_active(GTK_COMBO_BOX(setting_finalbpp_combo), 0);
 
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_flattened_image_checkbutton), dialog_settings.flattened_image);
@@ -509,6 +488,11 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
     g_signal_connect (setting_tilesize_height_spinbutton, "value-changed",
                       G_CALLBACK (on_setting_tilesize_spinbutton_changed), GINT_TO_POINTER(WIDGET_TILESIZE_HEIGHT));
 
+    // Flip X/Y updates
+    g_signal_connect(G_OBJECT(setting_checkflip_checkbutton), "toggled",
+                      G_CALLBACK(on_setting_checkflip_checkbutton_changed), NULL);
+
+
     // Overlay control changes (will require a re-render)
     g_signal_connect(G_OBJECT(setting_overlay_grid_checkbutton), "toggled",
                       G_CALLBACK(on_setting_overlay_checkbutton_changed), NULL);
@@ -524,28 +508,42 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
 
     // ======== HANDLE PROCESSING UPDATES VIA UI CONTROL VALUE CHANGES ========
 
-    // Connect a second signal to trigger a preview update
-    // TODO: just run display processing
+    // Connect a second signal to trigger a preview update for setting changes
+    // This will trigger various different levels of re-processing based on the setting
+
+    // Scaling zoom changed
     g_signal_connect_swapped (setting_scale_spinbutton, "value-changed",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 
-    // TODO: wire this to a separate processing function to run both tile and display processing
+    // Tile Size
     g_signal_connect_swapped (setting_tilesize_width_spinbutton, "value-changed",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
     g_signal_connect_swapped (setting_tilesize_height_spinbutton, "value-changed",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 
+    // Flip X/Y
+    g_signal_connect_swapped (setting_checkflip_checkbutton, "toggled",
+                              G_CALLBACK(tilemap_dialog_processing_run), drawable);
+
+
+    // Overlay options
     g_signal_connect_swapped (setting_overlay_grid_checkbutton, "toggled",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
     g_signal_connect_swapped (setting_overlay_tileids_checkbutton, "toggled",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 
+    // Source image vs Source layer
     g_signal_connect_swapped (setting_flattened_image_checkbutton, "toggled",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 
+    // Mouse clicks on the preview image itself
     g_signal_connect_swapped (scaled_preview_window, "button-press-event",
                               G_CALLBACK(tilemap_dialog_processing_run), drawable);
 
+
+    // ======== MISC ACTIONS ========
+
+    // Copy map to clipboard
     g_signal_connect (action_maptoclipboard_button, "clicked",
                       G_CALLBACK (on_action_maptoclipboard_button_clicked), NULL);
 }
@@ -647,6 +645,14 @@ static void on_setting_flattened_image_checkbutton_changed(GtkToggleButton * p_t
     // Request a reload of the source image and then a redraw of everything
     dialog_source_image_free_and_reset();
     scaled_output_invalidate();
+    tilemap_recalc_invalidate();
+}
+
+
+static void on_setting_checkflip_checkbutton_changed(GtkToggleButton * p_togglebutton, gpointer callback_data) {
+
+    dialog_settings.check_flip = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(setting_checkflip_checkbutton));
+
     tilemap_recalc_invalidate();
 }
 
@@ -1063,7 +1069,8 @@ void tilemap_calculate() {
         // printf("Tilemap: Starting Recalc: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
         status = tilemap_export_process(&app_image,
                                         dialog_settings.tile_width,
-                                        dialog_settings.tile_height);
+                                        dialog_settings.tile_height,
+                                        dialog_settings.check_flip);
 
         // TODO: warn/notify on failure (invalid tile size, etc)
       if (!status)
@@ -1348,13 +1355,14 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
                             g_markup_printf_escaped(" x,y: (%4d ,%-4d)"
                                                     "     Map Tile x,y: (%4d , %-4d)"
                                                     "     Map Tile #: %-8d"
-                                                    "    Tile ID: %d (%d uses)"
+                                                    "    Tile ID: %d %s (%d uses)"
                                                     "       RGB(%d,%d,%d)"
                                                     , img_x / scaled_output->scale_factor
                                                     , img_y / scaled_output->scale_factor
                                                     , map_tile_x, map_tile_y
                                                     , map_tile_idx
                                                     , tile_id
+                                                    , tile_flip_str[p_map->tile_attribs_list[map_tile_idx]]
                                                     , p_tile_set->tiles[tile_id].map_entry_count
                                                     , r, g, b
                                                     ) );

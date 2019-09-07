@@ -17,6 +17,8 @@
         gint  finalbpp;
 
         gint  flattened_image;
+
+        gint  check_flip;
     //  gint  offset_x;
     //  gint  offset_y;
 
