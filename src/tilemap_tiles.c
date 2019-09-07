@@ -33,23 +33,30 @@ void tile_initialize(tile_data * p_tile, tile_map_data * p_tile_map, tile_set_da
 }
 
 
-int32_t tile_register_new(tile_data * p_src_tile, tile_set_data * tile_set) {
+tile_map_entry tile_register_new(tile_data * p_src_tile, tile_set_data * tile_set, uint16_t search_mask) {
 
-    int32_t     tile_id;
-    tile_data * new_tile;
+    int             h;
+    tile_map_entry  new_map_entry;
+    tile_data     * new_tile;
 
 // printf("tile_register_new %d\n",tile_set->tile_count);
 
     if (tile_set->tile_count < TILES_MAX_DEFAULT) {
 
         // Set tile id to the current tile
-        tile_id = tile_set->tile_count;
+        new_map_entry.id = tile_set->tile_count;
+
+        // Default: no attributes
+        new_map_entry.attribs = 0;
 
         // Use an easier to read name for the new tile entry
-        new_tile = &tile_set->tiles[tile_id];
+        new_tile = &tile_set->tiles[new_map_entry.id];
 
         // Store hash and encoded image data into tile
-        new_tile->hash = p_src_tile->hash;
+        for (h = TILE_FLIP_X; h <= TILE_FLIP_MAX; h++)
+            new_tile->hash[h] = p_src_tile->hash[h];
+
+
         new_tile->encoded_size_bytes = 0;
         new_tile->raw_bytes_per_pixel = p_src_tile->raw_bytes_per_pixel;
         new_tile->raw_width           = p_src_tile->raw_width;
@@ -71,30 +78,40 @@ int32_t tile_register_new(tile_data * p_src_tile, tile_set_data * tile_set) {
             tile_set->tile_count++;
 
         } else // malloc failed
-            tile_id = TILE_ID_OUT_OF_SPACE;
+            new_map_entry.id = TILE_ID_OUT_OF_SPACE;
     }
     else
-        tile_id = TILE_ID_OUT_OF_SPACE;
+        new_map_entry.id = TILE_ID_OUT_OF_SPACE;
 
-// printf("tile_register_new tile_id=%d\n",tile_id);
+// printf("tile_register_new tile_id=%d\n",new_map_entry.id);
 
-    return (tile_id);
+    return (new_map_entry);
 }
 
 
-int32_t tile_find_matching(uint64_t hash_sig, tile_set_data * tile_set) {
+tile_map_entry tile_find_match(uint64_t hash_sig, tile_set_data * tile_set, uint16_t search_mask) {
 
     int c;
+    int h;
+    tile_map_entry tile_match_rec;
 
     for (c = 0; c < tile_set->tile_count; c++) {
-        if (hash_sig == tile_set->tiles[c].hash) {
-            // found a matching tile, return it's ID
-            return(c);
+        for (h = TILE_FLIP_MIN; h <= TILE_FLIP_MAX; h++) {
+            if (h & search_mask) {
+                if (hash_sig == tile_set->tiles[c].hash[h]) {
+
+                    tile_match_rec.id       = c; // found a matching tile, return it's ID
+                    tile_match_rec.attribs  = h; // Set flip x/y bits if present
+
+                    return(tile_match_rec);
+                }
+            }
         }
     }
 
     // No matching tile found
-    return(TILE_ID_NOT_FOUND);
+    tile_match_rec.id = TILE_ID_NOT_FOUND;
+    return(tile_match_rec);
 }
 
 

@@ -320,9 +320,9 @@ static void render_grid_rgb(uint8_t * p_buf) {
 
 // TODO: renger grid rgb: handle transparency better here (see RGBA)
             // Semi-invert the pixel
-            *p_pix++ ^= 0x80; // R
-            *p_pix++ ^= 0x80; // G
-            *p_pix++ ^= 0x80; // B
+            *p_pix++ ^= 0x20; // R
+            *p_pix++ ^= 0x20; // G
+            *p_pix++ ^= 0x20; // B
         }
         // Advance image buffer to next horizontal grid line
         p_pix += row_gap_u8;
@@ -339,9 +339,9 @@ static void render_grid_rgb(uint8_t * p_buf) {
         for (y=0; y < height; y++) {
 
             // Semi-invert the pixel
-            *p_pix++ ^= 0x80; // R
-            *p_pix++ ^= 0x80; // G
-            *p_pix++ ^= 0x80; // B
+            *p_pix++ ^= 0x20; // R
+            *p_pix++ ^= 0x20; // G
+            *p_pix++ ^= 0x20; // B
 
             // Move down by one pixel (row)
             p_pix += col_increment_u8;
@@ -371,7 +371,7 @@ static void render_grid_rgba(uint32_t * p_buf) {
             // If the pixel is mostly visible, semi-invert it
             // If it's mostly transparent then set it to red + fully visible
             if (*p_pix & 0xC0000000)
-                *p_pix ^= 0x00808080;
+                *p_pix ^= 0x00202020;
             else
                 *p_pix = 0xFF0000FF;
 
@@ -395,7 +395,7 @@ static void render_grid_rgba(uint32_t * p_buf) {
             // If the pixel is mostly visible, semi-invert it
             // If it's mostly transparent then set it to red + fully visible
             if (*p_pix & 0xC0000000)
-                *p_pix ^= 0x00808080;
+                *p_pix ^= 0x00202020;
             else
                 *p_pix = 0xFF0000FF;
 

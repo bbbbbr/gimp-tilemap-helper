@@ -54,6 +54,7 @@ static PluginTileMapVals plugin_config_vals = // PluginPixelArtScalerVals plugin
   1,  // gint overlay_tileids_enabled;
   0,  // gint  finalbpp;
   1,  // gint flattened_image;
+  0,  // gint check_flip;
 };
 
 

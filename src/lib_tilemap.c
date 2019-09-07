@@ -19,9 +19,15 @@ color_data    colormap;
 
 int tilemap_needs_recalc;
 
+void tilemap_free_tile_set();
+void tile_calc_alternate_hashes(tile_data *);
+
 void tilemap_recalc_invalidate(void) {
+
     printf("Tilemap: recalc invalidated\n");
     tilemap_needs_recalc = true;
+    tilemap_free_tile_set(); // Free tiles in set since they will get overwritten
+
 }
 
 
@@ -34,6 +40,19 @@ void tilemap_recalc_clear_flag(void) {
 int tilemap_recalc_needed(void) {
     return tilemap_needs_recalc;
 }
+
+
+// Handles whether to check/calculate hash for flip x/y of tile hash
+void tilemap_search_mask_set(uint16_t search_mask_new) {
+
+    tile_map.search_mask = search_mask_new;
+
+//    if (tile_map.search_mask != search_mask_new) {
+//        tile_map.search_mask = search_mask_new;
+//        tilemap_recalc_invalidate();
+//    }
+}
+
 
 // TODO: some mixing of global and locals. Simplify code
 int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height) {
@@ -48,15 +67,20 @@ int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height) 
     tile_map.width_in_tiles  = tile_map.map_width  / tile_map.tile_width;
     tile_map.height_in_tiles = tile_map.map_height / tile_map.tile_height;
 
+    // Normal orientation search only, no flip x/y by default
+    tile_map.search_mask = TILE_FLIP_NONE;
+
     // Max space required to store Tile Map is
     // width x height in tiles (if every map tile is unique)
     tile_map.size = (tile_map.width_in_tiles * tile_map.height_in_tiles);
 
-    tile_map.tile_id_list = malloc(tile_map.size * sizeof(int32_t));
-
+    tile_map.tile_id_list = malloc(tile_map.size * sizeof(uint32_t));
     if (!tile_map.tile_id_list)
             return(false);
 
+    tile_map.tile_attribs_list = malloc(tile_map.size * sizeof(uint16_t));
+    if (!tile_map.tile_attribs_list)
+            return(false);
 
     // Tile Set
     tile_set.tile_bytes_per_pixel = p_src_img->bytes_per_pixel;
@@ -65,7 +89,7 @@ int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height) 
     tile_set.tile_size   = tile_set.tile_width * tile_set.tile_height * tile_set.tile_bytes_per_pixel;
     tile_set.tile_count  = 0;
 
-    tilemap_needs_recalc = true;
+    tilemap_recalc_invalidate();
 
     return (true);
 }
@@ -96,10 +120,11 @@ unsigned char process_tiles(image_data * p_src_img) {
 
     int         img_x, img_y;
 
-    tile_data   tile;
-    uint32_t    img_buf_offset;
-    int32_t     tile_id;
-    int32_t     map_slot;
+    tile_data      tile;
+    tile_map_entry map_entry;
+    uint32_t       img_buf_offset;
+    int32_t        tile_ret;
+    int32_t        map_slot;
 
 benchmark_slot_resetall();
 printf("Tilemap: Start -> Process..  ");
@@ -130,44 +155,48 @@ benchmark_start();
 
                 benchmark_slot_start(9);
                 // TODO! Don't hash transparent pixels? Have to overwrite second byte?
-                tile.hash = MurmurHash2( tile.p_img_raw, tile.raw_size_bytes, 0xF0A5); // len is u8count
+                // TODO: BUG? Is this missing the extra tile 32 bit padding bytes?
+                tile.hash[0] = MurmurHash2( tile.p_img_raw, tile.raw_size_bytes, 0xF0A5); // len is u8count
                 benchmark_slot_update(9);
 
 
                 benchmark_slot_start(2);
                 // TODO: search could be optimized with a hash array
-                tile_id = tile_find_matching(tile.hash, &tile_set);
-                //printf("New Tile: (%3d, %3d) tile_id=%4d, tile_hash = %8lx \n", img_x, img_y, tile_id, tile.hash);
+                map_entry = tile_find_match(tile.hash[0], &tile_set, tile_map.search_mask);
+                //printf("New Tile: (%3d, %3d) tile_id=%4d, tile_hash[0] = %8lx \n", img_x, img_y, tile_id, tile.hash[0]);
                 benchmark_slot_update(2);
 
                 // Tile not found, create a new entry
-                if (tile_id == TILE_ID_NOT_FOUND) {
+                if (map_entry.id == TILE_ID_NOT_FOUND) {
 
                     benchmark_slot_start(3);
-                    tile_id = tile_register_new(&tile, &tile_set);
+                    // Calculate remaining hash flip variations
+                    tile_calc_alternate_hashes(&tile);
                     benchmark_slot_update(3);
 
-                    if (tile_id <= TILE_ID_OUT_OF_SPACE) {
-                        if (tile.p_img_raw)
+                    benchmark_slot_start(4);
+                    map_entry = tile_register_new(&tile, &tile_set, tile_map.search_mask);
+                    benchmark_slot_update(4);
+
+                    if (map_entry.id == TILE_ID_OUT_OF_SPACE) {
+
+                        if (tile.p_img_raw) {
                             free(tile.p_img_raw);
-                        tile.p_img_raw = NULL;
+                            tile.p_img_raw = NULL;
+                        }
+
                         tilemap_free_resources();
+
                         printf("Tilemap: Process: FAIL -> Too Many Tiles\n");
                         return (false); // Ran out of tile space, exit
                     }
                 }
-                else {
-                    // Found an existing entry, increment the map entry count
-                    tile_set.tiles[tile_id].map_entry_count++;
-                }
+                else // if (map_entry.id == TILE_ID_NOT_FOUND)
+                    tile_set.tiles[map_entry.id].map_entry_count++; // increment tile in map usage entry count
 
-                tile_map.tile_id_list[map_slot] = tile_id; // = tile_id; // TODO: IMPORTANT, SOMETHING IS VERY WRONG
-//                int32_t test;
-//                test = tile_id;
+                tile_map.tile_id_list[map_slot]      = map_entry.id;
+                tile_map.tile_attribs_list[map_slot] = map_entry.attribs;
 
-//                tile_map.tile_id_list[map_slot] = test; // = tile_id; // TODO: IMPORTANT, SOMETHING IS VERY WRONG
-
-                // printf("Map Slot %d: tile_id=%d tilemap[]=%d, %08lx\n",map_slot, tile_id, tile_map.tile_id_list[map_slot], tile.hash);
                 map_slot++;
             }
         }
@@ -190,6 +219,19 @@ benchmark_slot_printall();
 }
 
 
+void tile_calc_alternate_hashes(tile_data * p_tile) {
+
+    int h;
+    // Calculate the remaining requested hash flip permutations
+    for (h = TILE_FLIP_X; h <= TILE_FLIP_MAX; h++)
+        if (h & tile_map.search_mask)
+            p_tile->hash[h] = MurmurHash2( p_tile->p_img_raw, p_tile->raw_size_bytes, 0xF0A5); // len is u8count
+
+//  TODO: CALCULATE THE FLIPPED TILE HASHES
+}
+
+
+
 static int32_t check_dimensions_valid(image_data * p_src_img, int tile_width, int tile_height) {
 
     // TODO: propagate error up to user dialog
@@ -204,9 +246,8 @@ static int32_t check_dimensions_valid(image_data * p_src_img, int tile_width, in
 
 
 
-void tilemap_free_resources() {
-
-    int c;
+void tilemap_free_tile_set() {
+        int c;
 
     // Free all the tile set data
     for (c = 0; c < tile_set.tile_count; c++) {
@@ -220,10 +261,23 @@ void tilemap_free_resources() {
         tile_set.tiles[c].p_img_raw = NULL;
     }
 
+    tile_set.tile_count  = 0;
+}
+
+void tilemap_free_resources() {
+
+    tilemap_free_tile_set();
+
     // Free tile map data
-    if (tile_map.tile_id_list)
+    if (tile_map.tile_id_list) {
         free(tile_map.tile_id_list);
-    tile_map.tile_id_list = NULL;
+        tile_map.tile_id_list = NULL;
+    }
+
+    if (tile_map.tile_attribs_list) {
+        free(tile_map.tile_attribs_list);
+        tile_map.tile_id_list = NULL;
+    }
 
 }
 
