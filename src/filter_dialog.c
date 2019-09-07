@@ -75,6 +75,7 @@ const gchar * const finalbpp_strs[]          = { "Src Image", "1", "2", "3", "4"
 const gchar * const srcbpp_str[]             = {" ", "Source: 8", "Source: 16", "Source: 24", "Source: 32"};
 const gchar * const srcbpp_dialogtitle_str[] = {" ", "8 bits/pixel, Indexed", "16 bits/pixel, Indexed-A", "24 bits/pixel, RGB", "32 bits/pixel, RGB-A"};
 
+const gchar * const tile_flip_str[]          = { " ", ", flip: X", ", flip: Y", ", flip: X+Y" };
 
 
 // Widget for displaying the upscaled image preview
@@ -1354,13 +1355,14 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
                             g_markup_printf_escaped(" x,y: (%4d ,%-4d)"
                                                     "     Map Tile x,y: (%4d , %-4d)"
                                                     "     Map Tile #: %-8d"
-                                                    "    Tile ID: %d (%d uses)"
+                                                    "    Tile ID: %d %s (%d uses)"
                                                     "       RGB(%d,%d,%d)"
                                                     , img_x / scaled_output->scale_factor
                                                     , img_y / scaled_output->scale_factor
                                                     , map_tile_x, map_tile_y
                                                     , map_tile_idx
                                                     , tile_id
+                                                    , tile_flip_str[p_map->tile_attribs_list[map_tile_idx]]
                                                     , p_tile_set->tiles[tile_id].map_entry_count
                                                     , r, g, b
                                                     ) );
