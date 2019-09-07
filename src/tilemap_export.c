@@ -70,10 +70,46 @@ uint32_t tilemap_export_c_source_to_string(char * p_dest_str, uint32_t max_len, 
         }
     }
 
-
     // Close the array
     CALC_REM_LEN();
     len += snprintf((p_dest_str + len), len_rem, "};\n");
+
+
+
+    // If the flip x/y option was enabled, then write out the per-map-entry attribute data
+    if (p_map->search_mask) {
+
+        CALC_REM_LEN();
+        len += (uint32_t)snprintf((p_dest_str + len), len_rem,
+                "\n\n\nconst unsigned int map_attribs[] = \n"
+                "{\n"
+                );
+
+        // Write all the Tile Map Attrib data to a file
+        for (idx = 0; idx < p_map->size; idx++) {
+
+                // Update remaining length, avoid negative wraparound
+                CALC_REM_LEN();
+                len += snprintf((p_dest_str + len), len_rem, "%4x,", p_map->tile_attribs_list[idx]);
+
+            if (idx && (((idx+1) % 16) == 0)) {
+                // Update remaining length, avoid negative wraparound
+                CALC_REM_LEN();
+                len += snprintf((p_dest_str + len), len_rem, "\n"); // Line break every 8 tiles
+            }
+
+            if (idx && (((idx+1) % 64) == 0)) {
+                // Update remaining length, avoid negative wraparound
+                CALC_REM_LEN();
+                len += snprintf((p_dest_str + len), len_rem, "\n"); // An extra line break every 64 tiles
+            }
+        }
+
+        // Close the array
+        CALC_REM_LEN();
+        len += snprintf((p_dest_str + len), len_rem, "};\n");
+
+    }
 
     return (len);
 }
