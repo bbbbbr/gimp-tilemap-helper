@@ -30,12 +30,13 @@
         IMG_BITDEPTH_LAST
     };
 
-    #define TILE_FLIP_NONE 0x01
-    #define TILE_FLIP_X    0x02
-    #define TILE_FLIP_Y    0x04
-    #define TILE_FLIP_XY   (TILE_FLIP_X | TILE_FLIP_Y)
-    #define TILE_FLIP_MASK   0x07
+    #define TILE_FLIP_BITS_NONE 0x00
+    #define TILE_FLIP_BITS_X    0x01
+    #define TILE_FLIP_BITS_Y    0x02
+    #define TILE_FLIP_BITS_XY   (TILE_FLIP_BITS_X | TILE_FLIP_BITS_Y)
+    #define TILE_FLIP_MASK      0x03
     #define TILE_FLIP_MIN       0
+    #define TILE_FLIP_MIN_FLIP  1
     #define TILE_FLIP_MAX       3
 
     // Tile Map Entry records
@@ -93,8 +94,8 @@
     void           tilemap_free_resources();
     static int32_t check_dimensions_valid(image_data * p_src_img, int tile_width, int tile_height);
     unsigned char  process_tiles(image_data * p_src_img);
-    unsigned char  tilemap_export_process(image_data * p_src_img, int tile_width, int tile_height);
-    int32_t        tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height);
+    unsigned char  tilemap_export_process(image_data * p_src_img, int tile_width, int tile_height, int check_flip);
+    int32_t        tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height, uint16_t search_mask);
 
     tile_map_data * tilemap_get_map(void);
     tile_set_data * tilemap_get_tile_set(void);

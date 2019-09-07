@@ -650,13 +650,7 @@ static void on_setting_flattened_image_checkbutton_changed(GtkToggleButton * p_t
 
 static void on_setting_checkflip_checkbutton_changed(GtkToggleButton * p_togglebutton, gpointer callback_data) {
 
-    dialog_settings.check_flip = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(setting_overlay_grid_checkbutton));
-
-    // Set the search mask to look for flip x and flip y (horizontal and vertical mirroring)
-    if (dialog_settings.check_flip)
-        tilemap_search_mask_set(TILE_FLIP_XY);
-    else
-        tilemap_search_mask_set(TILE_FLIP_NONE);
+    dialog_settings.check_flip = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(setting_checkflip_checkbutton));
 
     tilemap_recalc_invalidate();
 }
@@ -1074,7 +1068,8 @@ void tilemap_calculate() {
         // printf("Tilemap: Starting Recalc: tilemap_recalc_needed() = %d\n\n", tilemap_recalc_needed());
         status = tilemap_export_process(&app_image,
                                         dialog_settings.tile_width,
-                                        dialog_settings.tile_height);
+                                        dialog_settings.tile_height,
+                                        dialog_settings.check_flip);
 
         // TODO: warn/notify on failure (invalid tile size, etc)
       if (!status)

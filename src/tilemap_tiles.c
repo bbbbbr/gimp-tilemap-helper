@@ -9,6 +9,21 @@
 #include "lib_tilemap.h"
 #include "tilemap_tiles.h"
 
+const uint16_t tile_flip_bits[] = {
+    TILE_FLIP_BITS_NONE,
+    TILE_FLIP_BITS_X,
+    TILE_FLIP_BITS_Y,
+    TILE_FLIP_BITS_XY };
+
+
+void tile_free(tile_data * p_tile) {
+
+    if (p_tile->p_img_raw)
+        free(p_tile->p_img_raw);
+
+    p_tile->p_img_raw = NULL;
+}
+
 
 void tile_initialize(tile_data * p_tile, tile_map_data * p_tile_map, tile_set_data * p_tile_set) {
 
@@ -53,7 +68,7 @@ tile_map_entry tile_register_new(tile_data * p_src_tile, tile_set_data * tile_se
         new_tile = &tile_set->tiles[new_map_entry.id];
 
         // Store hash and encoded image data into tile
-        for (h = TILE_FLIP_X; h <= TILE_FLIP_MAX; h++)
+        for (h = TILE_FLIP_MIN; h <= TILE_FLIP_MAX; h++)
             new_tile->hash[h] = p_src_tile->hash[h];
 
 
@@ -92,19 +107,26 @@ tile_map_entry tile_register_new(tile_data * p_src_tile, tile_set_data * tile_se
 tile_map_entry tile_find_match(uint64_t hash_sig, tile_set_data * tile_set, uint16_t search_mask) {
 
     int c;
-    int h;
+    int h, h_range;
     tile_map_entry tile_match_rec;
 
+    // TODO: for now flip X and flip Y are joined together, so always check each permutation if either is turned on
+    if (!search_mask) h_range = TILE_FLIP_MIN;
+    else h_range = TILE_FLIP_MAX;
+
+    // Loop through all tiles in the set
     for (c = 0; c < tile_set->tile_count; c++) {
-        for (h = TILE_FLIP_MIN; h <= TILE_FLIP_MAX; h++) {
-            if (h & search_mask) {
-                if (hash_sig == tile_set->tiles[c].hash[h]) {
+        // Loop through all hashes that are present
+        for (h = TILE_FLIP_MIN; h <= h_range; h++) {
+            // If a mash matches then return it (along with flip attributes_
+            if (hash_sig == tile_set->tiles[c].hash[h]) {
 
-                    tile_match_rec.id       = c; // found a matching tile, return it's ID
-                    tile_match_rec.attribs  = h; // Set flip x/y bits if present
+                tile_match_rec.id       = c; // found a matching tile, return it's ID
+                tile_match_rec.attribs  = tile_flip_bits[h]; // Set flip x/y bits if present
 
-                    return(tile_match_rec);
-                }
+                if (h == 3)
+                    printf("Tilemap: Search: Flip: Found at %d -> %d\n", c, h);
+                return(tile_match_rec);
             }
         }
     }

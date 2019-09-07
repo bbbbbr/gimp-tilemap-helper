@@ -20,7 +20,9 @@ color_data    colormap;
 int tilemap_needs_recalc;
 
 void tilemap_free_tile_set();
-void tile_calc_alternate_hashes(tile_data *);
+void tile_calc_alternate_hashes(tile_data *, tile_data *);
+void tile_flip_x(tile_data * p_src_tile, tile_data * p_dst_tile);
+void tile_flip_y(tile_data * p_src_tile, tile_data * p_dst_tile);
 
 void tilemap_recalc_invalidate(void) {
 
@@ -42,21 +44,10 @@ int tilemap_recalc_needed(void) {
 }
 
 
-// Handles whether to check/calculate hash for flip x/y of tile hash
-void tilemap_search_mask_set(uint16_t search_mask_new) {
-
-    tile_map.search_mask = search_mask_new;
-
-//    if (tile_map.search_mask != search_mask_new) {
-//        tile_map.search_mask = search_mask_new;
-//        tilemap_recalc_invalidate();
-//    }
-}
-
-
 // TODO: some mixing of global and locals. Simplify code
-int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height) {
+int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height, uint16_t search_mask) {
 
+    printf("Tilemap: tilemap_initialize\n");
     // Tile Map
     tile_map.map_width   = p_src_img->width;
     tile_map.map_height  = p_src_img->height;
@@ -68,7 +59,7 @@ int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height) 
     tile_map.height_in_tiles = tile_map.map_height / tile_map.tile_height;
 
     // Normal orientation search only, no flip x/y by default
-    tile_map.search_mask = TILE_FLIP_NONE;
+    tile_map.search_mask = search_mask;
 
     // Max space required to store Tile Map is
     // width x height in tiles (if every map tile is unique)
@@ -95,11 +86,15 @@ int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height) 
 }
 
 
+unsigned char tilemap_export_process(image_data * p_src_img, int tile_width, int tile_height, int check_flip) {
 
-unsigned char tilemap_export_process(image_data * p_src_img, int tile_width, int tile_height) {
+    uint16_t search_mask;
+
+    if (check_flip) search_mask = TILE_FLIP_BITS_XY;
+        else        search_mask = TILE_FLIP_BITS_NONE;
 
     if ( check_dimensions_valid(p_src_img, tile_width, tile_height) ) {
-        if (!tilemap_initialize(p_src_img, tile_width, tile_height)) { // Success, prep for processing
+        if (!tilemap_initialize(p_src_img, tile_width, tile_height, search_mask)) { // Success, prep for processing
             printf("Tilemap: Process: tilemap_initialize: failed\n");
             return (false); // Signal failure and exit
         }
@@ -120,20 +115,21 @@ unsigned char process_tiles(image_data * p_src_img) {
 
     int         img_x, img_y;
 
-    tile_data      tile;
+    tile_data      tile, alt_tile;
     tile_map_entry map_entry;
     uint32_t       img_buf_offset;
     int32_t        tile_ret;
     int32_t        map_slot;
 
 benchmark_slot_resetall();
-printf("Tilemap: Start -> Process..  ");
+printf("Tilemap: Start -> Process..  (flip=%d)  .. ", tile_map.search_mask);
 benchmark_start();
 
     map_slot = 0;
 
     // Use pre-initialized values in from tilemap_initialize()
     tile_initialize(&tile, &tile_map, &tile_set);
+    tile_initialize(&alt_tile, &tile_map, &tile_set);
 
     if (tile.p_img_raw) {
 
@@ -161,7 +157,7 @@ benchmark_start();
 
 
                 benchmark_slot_start(2);
-                // TODO: search could be optimized with a hash array
+                // TODO: search could be optimized with a hash array / partitioning
                 map_entry = tile_find_match(tile.hash[0], &tile_set, tile_map.search_mask);
                 //printf("New Tile: (%3d, %3d) tile_id=%4d, tile_hash[0] = %8lx \n", img_x, img_y, tile_id, tile.hash[0]);
                 benchmark_slot_update(2);
@@ -171,7 +167,9 @@ benchmark_start();
 
                     benchmark_slot_start(3);
                     // Calculate remaining hash flip variations
-                    tile_calc_alternate_hashes(&tile);
+                    // (only for tiles that get registered)
+                    if (tile_map.search_mask)
+                        tile_calc_alternate_hashes(&tile, &alt_tile);
                     benchmark_slot_update(3);
 
                     benchmark_slot_start(4);
@@ -180,10 +178,8 @@ benchmark_start();
 
                     if (map_entry.id == TILE_ID_OUT_OF_SPACE) {
 
-                        if (tile.p_img_raw) {
-                            free(tile.p_img_raw);
-                            tile.p_img_raw = NULL;
-                        }
+                        tile_free(&tile);
+                        tile_free(&alt_tile);
 
                         tilemap_free_resources();
 
@@ -206,10 +202,9 @@ benchmark_start();
         return (false); // Failed to allocate buffer, exit
     }
 
-    // Free using the original pointer, not tile.p_img_raw
-    if (tile.p_img_raw)
-        free(tile.p_img_raw);
-    tile.p_img_raw = NULL;
+    // Free resources
+    tile_free(&tile);
+    tile_free(&alt_tile);
 
 benchmark_elapsed();
 benchmark_slot_printall();
@@ -218,16 +213,97 @@ benchmark_slot_printall();
 //    printf("Tilemap: Process: Total Tiles=%d\n", tile_set.tile_count);
 }
 
+void tile_flip_y(tile_data * p_src_tile, tile_data * p_dst_tile) {
 
-void tile_calc_alternate_hashes(tile_data * p_tile) {
+    uint16_t  y;
+    uint8_t * p_src_top;
+    uint8_t * p_dst_bottom;
+    uint16_t  row_stride;
 
-    int h;
-    // Calculate the remaining requested hash flip permutations
-    for (h = TILE_FLIP_X; h <= TILE_FLIP_MAX; h++)
-        if (h & tile_map.search_mask)
-            p_tile->hash[h] = MurmurHash2( p_tile->p_img_raw, p_tile->raw_size_bytes, 0xF0A5); // len is u8count
+    row_stride = (p_src_tile->raw_width * p_src_tile->raw_bytes_per_pixel);
 
-//  TODO: CALCULATE THE FLIPPED TILE HASHES
+    // Set up pointers to opposite top/bottom rows of image
+    // Start of First row / Start of Last row
+    p_src_top    = p_src_tile->p_img_raw;
+    p_dst_bottom = p_dst_tile->p_img_raw + ((p_src_tile->raw_height - 1) * row_stride);
+
+    // Copy Source rows from top to bottom into Dest from bottom to top
+    for (y = 0; y < p_src_tile->raw_height; y++) {
+        memcpy(p_dst_bottom, p_src_top, row_stride);
+        p_src_top    += row_stride;
+        p_dst_bottom -= row_stride;
+    }
+}
+
+
+void tile_flip_x(tile_data * p_src_tile, tile_data * p_dst_tile) {
+
+    uint16_t  x, y;
+    uint8_t * p_src_left;
+    uint8_t * p_dst_right;
+    uint8_t   bpp;
+    uint16_t  dest_row_increment, dest_pixel_increment;
+
+    // Set up pointers to opposite sides of the first line
+    bpp = p_src_tile->raw_bytes_per_pixel;
+
+    p_src_left  = p_src_tile->p_img_raw;
+    p_dst_right = p_dst_tile->p_img_raw + ((p_src_tile->raw_width - 1) * bpp);
+
+    // * Source will end up where it needs to
+    //   be automatically for the next row
+    // * Dest needs to be advanced by two rows
+    dest_row_increment   = (p_src_tile->raw_width * 2) * bpp;
+    dest_pixel_increment = (bpp * 2) - 1;
+
+    for (y = 0; y < p_src_tile->raw_height; y++) {
+
+        for (x = 0; x < p_src_tile->raw_width; x++) {
+
+            // Copy row contents in reverse order
+            // Source increments (right) and Dest decrements_left
+            switch (bpp) {
+                //case 1: *p_dst_right-- = *p_src_left++;
+                //         break;
+
+                // For each higher bit depth, copy one more pixel
+                case 4: *p_dst_right++ = *p_src_left++;
+                case 3: *p_dst_right++ = *p_src_left++;
+                case 2: *p_dst_right++ = *p_src_left++;
+
+                case 1: *p_dst_right   = *p_src_left;
+                        // Finished copying pixels
+                        // Rewind Dest buffer and advance source
+                         p_dst_right -= dest_pixel_increment;
+                         p_src_left++;
+                        break;
+            }
+        }
+
+        p_dst_right += dest_row_increment;
+    }
+}
+
+
+void tile_calc_alternate_hashes(tile_data * p_tile, tile_data * p_alt_tile) {
+
+    //        if (mask_test & tile_map.search_mask) {
+
+    // TODO: for now flip X and flip Y are joined together, so always check each permutation
+
+    // Check for X flip (new copy of data)
+    tile_flip_x(p_tile, p_alt_tile);
+    p_tile->hash[1] = MurmurHash2( p_alt_tile->p_img_raw, p_alt_tile->raw_size_bytes, 0xF0A5); // len is u8count
+
+    // Check for Y flip (new copy of data)
+    tile_flip_y(p_tile, p_alt_tile);
+    p_tile->hash[2] = MurmurHash2( p_alt_tile->p_img_raw, p_alt_tile->raw_size_bytes, 0xF0A5); // len is u8count
+
+    // Check for X-Y flip (re-use data from previous Y flip)
+    tile_flip_x(p_tile, p_alt_tile);
+    tile_flip_y(p_alt_tile, p_alt_tile);
+    p_tile->hash[3] = MurmurHash2( p_alt_tile->p_img_raw, p_alt_tile->raw_size_bytes, 0xF0A5); // len is u8count
+
 }
 
 
