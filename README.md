@@ -1,6 +1,8 @@
 Gimp Tile Map Plugin
 ===========
 
+NOTE: The burrent version is rough around the edges and needs improvement and refactoring of the source. That may come in time. For now, consider it a mostly working beta...
+
 A GIMP plugin to help with creating tile maps and tile sets for games.
 
 You can create a level map in Gimp (or other image editors) and use this plugin to help with tile de-duplication and tile set optimizing.
