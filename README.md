@@ -1,7 +1,7 @@
 Gimp Tile Map Plugin
 ===========
 
-NOTE: The burrent version is rough around the edges and needs improvement and refactoring of the source. That may come in time. For now, consider it a mostly working beta...
+NOTE: The current version is rough around the edges. It needs improvement and refactoring of the source. That may come in time. For now, consider it a mostly working beta...
 
 A GIMP plugin to help with creating tile maps and tile sets for games.
 
