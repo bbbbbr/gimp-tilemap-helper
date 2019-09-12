@@ -26,8 +26,8 @@ Features
 
 
 OS binaries available for:
- * Linux
- * (Coming soon-ish?... Windows)
+ * Linux (GIMP 2.8+)
+ * Windows (GIMP 2.10.12+)
 
 
 ## Usage:
@@ -53,5 +53,6 @@ Plug-in folder locations:
 ## Requirements:
 
 ## Known limitations & Issues:
+* Max number of tiles: 8096
 
 ## GIMP usage hints:
