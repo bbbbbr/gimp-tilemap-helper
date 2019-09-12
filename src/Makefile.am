@@ -14,26 +14,29 @@ endif
 
 if HAVE_WINDRES
 include $(top_srcdir)/build/windows/gimprc-plug-ins.rule
-plugin_pixel_art_scalers_RC = plugin_pixel_art_scalers.rc.o
+plugin_tilemap_helper_RC = plugin_tilemap_helper.rc.o
 endif
 
 AM_LDFLAGS = $(mwindows)
 
 libexecdir = $(gimpplugindir)/plug-ins
 
-libexec_PROGRAMS = plugin_pixel_art_scalers
+libexec_PROGRAMS = plugin_tilemap_helper
 
-plugin_pixel_art_scalers_SOURCES = \
-	filter_pixel_art_scalers.c \
+# ls -1 *.c
+plugin_tilemap_helper_SOURCES = \
+	benchmark.c \
 	filter_dialog.c \
-	filter_scalers.c \
-	hq3x.c \
-	hqx_init.c \
-	hq2x.c \
-	hq4x.c \
-	xbr.c \
-	scaler_scalex.c \
-	scaler_nearestneighbor.c
+	filter_image.c \
+	filter_tilemap_helper.c \
+	hash.c \
+	lib_tilemap.c \
+	scale.c \
+	scaler_nearestneighbor.c \
+	tilemap_export.c \
+	tilemap_overlay.c \
+	tilemap_tiles.c
+
 
 
 
@@ -56,4 +59,4 @@ LDADD = \
 	$(GTK_LIBS)		\
 	$(RT_LIBS)		\
 	$(INTLLIBS)		\
-	$(plugin_pixel_art_scalers_RC)
+	$(plugin_tilemap_helper_RC)
