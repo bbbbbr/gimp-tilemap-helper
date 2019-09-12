@@ -9,7 +9,7 @@ static double last_time;
 static double slot_accum[max_slots];
 static double slot_last[max_slots];
 
-double get_time()
+double get_time(void)
 {
     struct timeval t;
     struct timezone tzp;
@@ -17,17 +17,17 @@ double get_time()
     return t.tv_sec + t.tv_usec*1e-6;
 }
 
-void benchmark_start() {
+void benchmark_start(void) {
     last_time = get_time();
 }
 
-void benchmark_elapsed() {
+void benchmark_elapsed(void) {
     printf(" ==> Elapsed: %.4f\n", get_time() - last_time);
     last_time = get_time();
 }
 
 
-void benchmark_slot_resetall() {
+void benchmark_slot_resetall(void) {
     int c;
     for (c = 0; c < max_slots; c++) {
         slot_accum[c] = 0;
@@ -53,7 +53,7 @@ void benchmark_slot_print(int slot) {
 }
 
 
-void benchmark_slot_printall() {
+void benchmark_slot_printall(void) {
     int c;
     for (c = 0; c < max_slots; c++) {
         if (slot_accum[c] != 0)

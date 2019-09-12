@@ -25,5 +25,5 @@
 
     void tilemap_dialog_imageid_set(gint32 new_image_id);
 
-    void dialog_free_resources();
+    void dialog_free_resources(void);
 #endif

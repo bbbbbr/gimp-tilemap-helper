@@ -4,7 +4,9 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
+#include "win_aligned_alloc.h"
 
 #include "lib_tilemap.h"
 #include "tilemap_tiles.h"
@@ -36,6 +38,8 @@ void tile_initialize(tile_data * p_tile, tile_map_data * p_tile_map, tile_set_da
     p_tile->raw_height          = p_tile_map->tile_height;
     p_tile->raw_size_bytes      = p_tile->raw_height * p_tile->raw_width * p_tile->raw_bytes_per_pixel;
     p_tile->map_entry_count     = 0;
+    
+    tile_size_bytes = p_tile->raw_size_bytes;
 
     // Make sure buffer is an even multiple of 32 bits (for hash function)
     tile_size_bytes_hash_padding = tile_size_bytes % sizeof(uint32_t);
@@ -44,7 +48,7 @@ void tile_initialize(tile_data * p_tile, tile_map_data * p_tile_map, tile_set_da
     p_tile->p_img_raw = aligned_alloc(sizeof(uint32_t), (tile_size_bytes + tile_size_bytes_hash_padding));
 
     // Make sure padding bytes are zeroed
-    memset(p_tile->p_img_raw, 0x00, tile_size_bytes_hash_padding);
+    memset(p_tile->p_img_raw, 0x00, tile_size_bytes + tile_size_bytes_hash_padding);
 }
 
 

@@ -31,7 +31,7 @@ void scaler_nearest_bpp_rgb(uint8_t * sp, uint8_t * dp,
                        int scale_factor,
                        int src_bpp)
 {
-    int       x, y, sx, sb;
+    int       x, y, sx;
     uint8_t   src_R, src_G, src_B;
     uint32_t  line_width_scaled_bpp;
 

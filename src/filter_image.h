@@ -9,7 +9,7 @@
     #include <libgimp/gimp.h>
     #include <libgimp/gimpui.h>
 
-    int tilemap_create_tileset_image();
+    int tilemap_create_tileset_image(void);
 
 #endif
 
