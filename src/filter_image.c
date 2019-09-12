@@ -12,6 +12,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <libgimp/gimp.h>
+#include <libgimp/gimpui.h>
+
 #include "filter_image.h"
 #include "lib_tilemap.h"
 
@@ -44,7 +47,7 @@ static void get_color_modes_from_bpp(gint bpp, gint * color_mode_image, gint * c
 //
 // * Call this only after tileset processing has completed: tilemap_initialize() -> tilemap_export_process()
 // * If the source image is indexed, tilemap_color_data_set() must be called first
-gint tilemap_create_tileset_image() {
+gint tilemap_create_tileset_image(void) {
 
     gint            status;
 
@@ -133,7 +136,12 @@ gint tilemap_create_tileset_image() {
         gimp_drawable_detach(new_drawable);
 
         // Add the layer to the image
-        gimp_image_add_layer(new_image_id, new_layer_id, 0);
+	// Note: gimp_image_add_layer() has been deprecated
+        // gimp_image_add_layer(new_image_id, new_layer_id, 0);
+	gimp_image_insert_layer (new_image_id, 
+                                 new_layer_id, 
+                                 0,  // parent_ID = 0 (none)
+                                 0); // position = 0
 
         // Set the filename
         gimp_image_set_filename(new_image_id, "Tileset");

@@ -91,8 +91,7 @@
 
     void tilemap_search_mask_set(uint16_t);
 
-    void           tilemap_free_resources();
-    static int32_t check_dimensions_valid(image_data * p_src_img, int tile_width, int tile_height);
+    void           tilemap_free_resources(void);
     unsigned char  process_tiles(image_data * p_src_img);
     unsigned char  tilemap_export_process(image_data * p_src_img, int tile_width, int tile_height, int check_flip);
     int32_t        tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height, uint16_t search_mask);

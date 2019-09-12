@@ -135,14 +135,14 @@ static void run(const gchar      * name,
     GimpRunMode        run_mode;
     GimpDrawable       *drawable;
     GimpPDBStatusType  status = GIMP_PDB_SUCCESS;
-    gint32             image_id, drawable_id;
+    gint32             image_id; //, drawable_id;
     gint               dialog_response;
 
     run_mode      = param[0].data.d_int32;
 
     //  Get the specified drawable
     image_id    = param[1].data.d_int32;
-    drawable_id = param[2].data.d_int32;
+//    drawable_id = param[2].data.d_int32;
     drawable = gimp_drawable_get (param[2].data.d_drawable);
 
     *nreturn_vals = 1;
@@ -215,7 +215,7 @@ printf("================================= Filter Main: run mode=%d  image_id = %
         //  Make sure that the drawable is RGB color
         if (gimp_drawable_is_rgb (drawable->drawable_id))
         {
-        gimp_progress_init ("Pixel-Art-Scalers");
+        gimp_progress_init ("Tilemap Helper");
 
 
         // Apply image filter (user confirmed in preview dialog)
@@ -246,9 +246,6 @@ printf("================================= Filter Main: run mode=%d  image_id = %
             return_values[1].data.d_string = "Unable to process image";
             // TODO: better error messaging
     }
-
-    // TODO:
-    // tilemap_release_resources();
 
     return_values[0].data.d_status = status;
 

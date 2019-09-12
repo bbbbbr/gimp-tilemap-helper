@@ -10,30 +10,23 @@
 
 #include <stdlib.h>
 
+#include "win_aligned_alloc.h"
+
 #include "scale.h"
 #include "scaler_nearestneighbor.h"
 #include "benchmark.h"
 
 static scaled_output_info scaled_output;
 static gint scale_factor;
-static gint scale_bpp;
 
 
 // Returns scale factor (2, 3, etc) of a scaler
 //
-gint scale_factor_get() {
+gint scale_factor_get(void) {
 
     return (scale_factor);
 }
 
-/*
-// Returns bpp (1, 2, 3, 4) of image
-//
-gint scale_bpp_get() {
-
-    return (scale_bpp);
-}
-*/
 
 
 // Sets scale factor (SCALE_FACTOR_MIN .. 2, 3, .. SCALE_FACTOR_MAX)
@@ -53,25 +46,6 @@ void scale_factor_set(gint scale_factor_new) {
              scale_factor = SCALE_FACTOR_MAX;
 }
 
-
-/*
-// Sets scale bits per pixel
-//
-// scaler_index: desired scaler (from the enum scaler_list)
-//
-void scale_bpp_set(gint scale_bpp_new) {
-
-    // Update local scale factor setting
-    scale_bpp = scale_bpp_new;
-
-    // Enforce min/max bounds
-    if      (scale_bpp < SCALE_BPP_MIN)
-             scale_bpp = SCALE_BPP_MIN;
-
-    else if (scale_bpp > SCALE_BPP_MAX)
-             scale_bpp = SCALE_BPP_MAX;
-}
-*/
 
 
 // scaled_info_get
@@ -93,7 +67,7 @@ scaled_output_info * scaled_info_get(void) {
 //
 // Used to clear output caching and trigger a redraw
 //
-void scaled_output_invalidate() {
+void scaled_output_invalidate(void) {
 
     printf("Scale: Invalidated\n");
     scaled_output.valid_image = FALSE;
@@ -107,7 +81,7 @@ void scaled_output_invalidate() {
 //
 // Used to assist with output caching
 //
-gint scaled_output_check_reapply_scale() {
+gint scaled_output_check_reapply_scale(void) {
 
     // If either the scale factor changed or there is no valid
     // image rendered at the moment, then signal TRUE to indicate

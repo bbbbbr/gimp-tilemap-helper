@@ -19,10 +19,12 @@ color_data    colormap;
 
 int tilemap_needs_recalc;
 
-void tilemap_free_tile_set();
+void tilemap_free_tile_set(void);
 void tile_calc_alternate_hashes(tile_data *, tile_data []);
 void tile_flip_x(tile_data * p_src_tile, tile_data * p_dst_tile);
 void tile_flip_y(tile_data * p_src_tile, tile_data * p_dst_tile);
+
+static int32_t check_dimensions_valid(image_data * p_src_img, int tile_width, int tile_height);
 
 void tilemap_recalc_invalidate(void) {
 
@@ -108,6 +110,7 @@ unsigned char tilemap_export_process(image_data * p_src_img, int tile_width, int
         return (false); // Signal failure and exit
 
     tilemap_recalc_clear_flag();
+    return (true);
 }
 
 
@@ -118,7 +121,6 @@ unsigned char process_tiles(image_data * p_src_img) {
     tile_data      tile, flip_tiles[2];
     tile_map_entry map_entry;
     uint32_t       img_buf_offset;
-    int32_t        tile_ret;
     int32_t        map_slot;
 
 benchmark_slot_resetall();
@@ -212,7 +214,7 @@ benchmark_start();
 benchmark_elapsed();
 benchmark_slot_printall();
 
-
+    return (true);
 //    printf("Tilemap: Process: Total Tiles=%d\n", tile_set.tile_count);
 }
 
@@ -325,7 +327,7 @@ static int32_t check_dimensions_valid(image_data * p_src_img, int tile_width, in
 
 
 
-void tilemap_free_tile_set() {
+void tilemap_free_tile_set(void) {
         int c;
 
     // Free all the tile set data
@@ -343,7 +345,7 @@ void tilemap_free_tile_set() {
     tile_set.tile_count  = 0;
 }
 
-void tilemap_free_resources() {
+void tilemap_free_resources(void) {
 
     tilemap_free_tile_set();
 

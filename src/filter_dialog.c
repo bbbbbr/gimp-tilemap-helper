@@ -16,8 +16,12 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "win_aligned_alloc.h"
+
 #include <libgimp/gimp.h>
 #include <libgimp/gimpui.h>
+
+#include <gtk/gtk.h>
 
 #include "filter_tilemap_helper.h"
 #include "filter_dialog.h"
@@ -35,7 +39,7 @@ extern const char PLUG_IN_BINARY[];
 
 static int dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
 
-static void dialog_source_image_free_and_reset();
+static void dialog_source_image_free_and_reset(void);
 static gint dialog_source_image_load(GimpDrawable * drawable);
 static gint dialog_source_colormap_load(GimpDrawable * drawable);
 
@@ -53,19 +57,21 @@ static void on_setting_checkflip_checkbutton_changed(GtkToggleButton *, gpointer
 static void on_action_maptoclipboard_button_clicked(GtkButton *, gpointer);
 
 
-static void dialog_settings_apply_to_ui();
+static void dialog_settings_apply_to_ui(void);
 static void dialog_settings_connect_signals(GimpDrawable *);
 
-static void dialog_ui_update();
-static void info_display_update();
+static void dialog_ui_update(void);
+int dialog_calc_dest_bpp(int);
 
-static void tilemap_copy_map_to_clipboard();
+static void info_display_update(void);
+
+static void tilemap_copy_map_to_clipboard(void);
 
 gboolean preview_scaled_update(GtkWidget *, GdkEvent *, GtkWidget *);
 
-static void tilemap_calculate();
+static void tilemap_calculate(void);
 
-static void tilemap_render_overlay();
+static void tilemap_render_overlay(void);
 
 static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllocation widget_alloc);
 static void tilemap_preview_highlight_tiles_on_mouseclick(gint x, gint y, GtkAllocation widget_alloc);
@@ -137,7 +143,7 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
 
     gboolean   run_result;
     gint       idx;
-    guchar     dialog_title_str[255];
+    char       dialog_title_str[255];
 
 
     gimp_ui_init (PLUG_IN_BINARY, FALSE);
@@ -417,7 +423,7 @@ void tilemap_dialog_imageid_set(gint32 new_image_id) {
 
 // Load dialog settings into UI (called on startup)
 //
-void dialog_settings_apply_to_ui() {
+void dialog_settings_apply_to_ui(void) {
 
     gint idx;
     //gchar * compare_str[255];
@@ -928,7 +934,7 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 
 
 
-static void dialog_source_image_free_and_reset() {
+static void dialog_source_image_free_and_reset(void) {
 
     if (app_image.p_img_data)
         free(app_image.p_img_data);
@@ -1056,12 +1062,9 @@ static gint dialog_source_colormap_load(GimpDrawable * drawable) {
 
 // TODO: variable tile size (push down via app settings?)
 //  gint image_id, gint drawable_id, gint image_mode)
-void tilemap_calculate() {
+void tilemap_calculate(void) {
 
     gint status;
-
-    tile_map_data * p_map;
-    tile_set_data * p_tile_set;
 
     status = TRUE; // Default to success
 
@@ -1084,7 +1087,7 @@ void tilemap_calculate() {
 }
 
 
-static void dialog_ui_update() {
+static void dialog_ui_update(void) {
 
     if (tilemap_recalc_needed()) {
 
@@ -1101,7 +1104,7 @@ static void dialog_ui_update() {
 }
 
 
-static void info_display_update() {
+static void info_display_update(void) {
 
     // TODO: Split out to new file, return strings
 
@@ -1192,7 +1195,7 @@ static void info_display_update() {
 
 #define TILEMAP_MAX_STR 100000
 
-static void tilemap_copy_map_to_clipboard() {
+static void tilemap_copy_map_to_clipboard(void) {
 
     tile_map_data * p_map;
     tile_set_data * p_tile_set;
@@ -1217,7 +1220,7 @@ static void tilemap_copy_map_to_clipboard() {
             // Get a handle to the given clipboard. You can also ask for
             // GDK_SELECTION_PRIMARY (the X "primary selection") or
             // GDK_SELECTION_SECONDARY.
-            GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
+            clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
 
             gtk_clipboard_set_text(clipboard, map_text_str, map_text_len);
         }
@@ -1226,7 +1229,7 @@ static void tilemap_copy_map_to_clipboard() {
 
 
 
-static void tilemap_render_overlay() {
+static void tilemap_render_overlay(void) {
 
     tile_map_data * p_map;
     tile_set_data * p_tile_set;
@@ -1379,7 +1382,7 @@ static void tilemap_preview_display_tilenum_on_mouseover(gint x, gint y, GtkAllo
 }
 
 
-void dialog_free_resources() {
+void dialog_free_resources(void) {
 
     dialog_source_image_free_and_reset();
 }

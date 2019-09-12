@@ -41,10 +41,8 @@
         uint8_t * p_overlaybuf;
     } scaled_output_info;
 
-    gint scale_factor_get();
+    gint scale_factor_get(void);
     void scale_factor_set(gint);
-//    gint scale_bpp_get();
-//    void scale_bpp_set(gint);
 
     void scale_init(void);
     void scale_release_resources(void);
@@ -53,8 +51,8 @@
     void scale_output_get_rgb_at_xy(int, int, uint8_t *, uint8_t *, uint8_t *);
 
     scaled_output_info * scaled_info_get(void);
-    void scaled_output_invalidate();
-    gint scaled_output_check_reapply_scale();
+    void scaled_output_invalidate(void);
+    gint scaled_output_check_reapply_scale(void);
     void scaled_output_check_reallocate(gint, gint, gint);
 
     void scaled_output_init(void);
