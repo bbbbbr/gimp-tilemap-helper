@@ -32,6 +32,8 @@ OS binaries available for:
 
 ## Usage:
 
+* The plugin is located under: Main Menu -> Filters -> Map -> Tilemap Helper
+
 ## Quick instructions:
 
 Native compile/install on Linux using below.
