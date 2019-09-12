@@ -22,7 +22,7 @@ Features
  * Tile X/Y Flipping detection
  * Export Tile Set as image -> new GIMP image
  * Export Tile Map as C text array -> Clipboard
- * Works with indexed, 24 bit RGB and alpha masks
+ * Works with indexed and 24 bit RGB images (including alpha masks)
 
 
 OS binaries available for:
@@ -54,5 +54,7 @@ Plug-in folder locations:
 
 ## Known limitations & Issues:
 * Max number of tiles: 8096
+* The Source Image or Layer must be an exact multiple of tile size in both dimensions
+* Greyscale images are not yet supported. Convert to RGB or indexed first
 
 ## GIMP usage hints:
