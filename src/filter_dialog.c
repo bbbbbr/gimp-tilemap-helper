@@ -1193,7 +1193,7 @@ static void info_display_update(void) {
 }
 
 
-#define TILEMAP_MAX_STR 100000
+#define TILEMAP_MAX_STR 1000000
 
 static void tilemap_copy_map_to_clipboard(void) {
 
