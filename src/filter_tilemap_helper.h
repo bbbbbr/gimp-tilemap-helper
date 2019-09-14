@@ -19,6 +19,9 @@
         gint  flattened_image;
 
         gint  check_flip;
+
+        gint  maptoclipboardtype;
+
     //  gint  offset_x;
     //  gint  offset_y;
 

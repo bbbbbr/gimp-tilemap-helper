@@ -53,6 +53,7 @@ static void on_setting_overlay_checkbutton_changed(GtkToggleButton *, gpointer);
 static void on_setting_finalbpp_combo_changed(GtkComboBox *, gpointer);
 static void on_setting_flattened_image_checkbutton_changed(GtkToggleButton *, gpointer);
 static void on_setting_checkflip_checkbutton_changed(GtkToggleButton *, gpointer);
+static void on_setting_maptoclipboardtype_combo_changed(GtkComboBox *, gpointer);
 
 static void on_action_maptoclipboard_button_clicked(GtkButton *, gpointer);
 
@@ -81,7 +82,11 @@ const gchar * const finalbpp_strs[]          = { "Src Image", "1", "2", "3", "4"
 const gchar * const srcbpp_str[]             = {" ", "Source: 8", "Source: 16", "Source: 24", "Source: 32"};
 const gchar * const srcbpp_dialogtitle_str[] = {" ", "8 bits/pixel, Indexed", "16 bits/pixel, Indexed-A", "24 bits/pixel, RGB", "32 bits/pixel, RGB-A"};
 
+const gchar * const maptoclipboardtype_str[] = {"C Array",          "ASM RGBDS"};
+enum export_copy_types                         { EXPORT_COPY_TYPE_C, EXPORT_COPY_TYPE_ASM_RGBDS};
+
 const gchar * const tile_flip_str[]          = { " ", ", flip: X", ", flip: Y", ", flip: X+Y" };
+
 
 
 // Widget for displaying the upscaled image preview
@@ -102,6 +107,8 @@ static GtkWidget * setting_overlay_grid_checkbutton;
 static GtkWidget * setting_overlay_tileids_checkbutton;
 
 static GtkWidget * setting_finalbpp_combo;
+
+static GtkWidget * setting_maptoclipboardtype_combo;
 
 static GtkWidget * setting_tilesize_label;
 static GtkWidget * setting_tilesize_width_spinbutton;
@@ -138,6 +145,9 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
 
     GtkWidget * setting_finalbpp_label;
     GtkWidget * setting_finalbpp_hbox;
+
+    GtkWidget * maptoclipboard_frame;
+    GtkWidget * maptoclipboard_hbox;
 
     GtkWidget * mouse_hover_frame;
 
@@ -331,7 +341,25 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
     gtk_container_add (GTK_CONTAINER (mouse_hover_frame), mouse_hover_display);
 
 
-    action_maptoclipboard_button = gtk_button_new_with_label("Copy Map -► Clipboard");
+    // Put the Export / Copy Map -> Clipboard button and options inside a frame
+    maptoclipboard_frame = gtk_frame_new(NULL);//("Export to Clipboard"); // Bug in some GTK themes: Adding a label to a frame hides the border
+    maptoclipboard_hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 5);
+    gtk_container_set_border_width (GTK_CONTAINER (maptoclipboard_hbox), 5);
+    gtk_container_add (GTK_CONTAINER (maptoclipboard_frame), maptoclipboard_hbox);
+
+        // Clipboard copy type (Load the combo box entries from a const array)
+        setting_maptoclipboardtype_combo = gtk_combo_box_text_new ();
+
+        for (idx = 0; idx < ARRAY_LEN(maptoclipboardtype_str); idx++)
+            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(setting_maptoclipboardtype_combo), maptoclipboardtype_str[idx]);
+        gtk_combo_box_set_active(GTK_COMBO_BOX(setting_maptoclipboardtype_combo), 0);
+
+        // Copy to clipboard button
+        action_maptoclipboard_button = gtk_button_new_with_label("Copy Map -► Clipboard");
+
+        gtk_box_pack_end (GTK_BOX (maptoclipboard_hbox), action_maptoclipboard_button, FALSE, FALSE, 0);
+        gtk_box_pack_end (GTK_BOX (maptoclipboard_hbox), setting_maptoclipboardtype_combo, FALSE, FALSE, 0);
+
 
     // Attach the UI WIdgets to the table and show them all
     // gtk_table_attach_defaults (*attach_to, *widget, left_attach, right_attach, top_attach, bottom_attach)
@@ -353,17 +381,19 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
     gtk_table_attach_defaults (GTK_TABLE (setting_table), memory_info_display,      4, 5, 0, 4);  // Vertical Column
     gtk_table_attach_defaults (GTK_TABLE (setting_table), setting_finalbpp_hbox,    4, 5, 4, 5);  // Bottom right
 
-gtk_table_attach_defaults (GTK_TABLE (setting_table), action_maptoclipboard_button,      3, 4, 4, 5);  // Vertical Column
-
 
     // Attach mouse hover info area to bottom of main vbox (below table)
     gtk_box_pack_start (GTK_BOX (main_vbox), mouse_hover_frame, FALSE, FALSE, 0);
 
+    // Attach map to clipboard area to bottom of main vbox
+    gtk_box_pack_start (GTK_BOX (main_vbox), maptoclipboard_frame, FALSE, FALSE, 0);
 
     gtk_widget_show_all (setting_table);
 
-    gtk_widget_show (mouse_hover_display);
+    gtk_widget_show_all (maptoclipboard_frame);
+
     gtk_widget_show (mouse_hover_frame);
+    gtk_widget_show (mouse_hover_display);
 
     dialog_settings_apply_to_ui();
 
@@ -442,10 +472,12 @@ void dialog_settings_apply_to_ui(void) {
 
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_checkflip_checkbutton),       dialog_settings.check_flip);
 
-
-    gtk_combo_box_set_active(GTK_COMBO_BOX(setting_finalbpp_combo), 0);
+    gtk_combo_box_set_active(GTK_COMBO_BOX(setting_maptoclipboardtype_combo), dialog_settings.maptoclipboardtype );
 
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_flattened_image_checkbutton), dialog_settings.flattened_image);
+
+
+    gtk_combo_box_set_active(GTK_COMBO_BOX(setting_finalbpp_combo), 0);
 
     // Loop through combo options to see if any match the string for the finalbpp value,
     // if there is a match then update combo box selection
@@ -511,6 +543,10 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
 
     g_signal_connect(G_OBJECT(setting_flattened_image_checkbutton), "toggled",
                       G_CALLBACK(on_setting_flattened_image_checkbutton_changed), NULL);
+
+    g_signal_connect (setting_maptoclipboardtype_combo, "changed",
+                      G_CALLBACK (on_setting_maptoclipboardtype_combo_changed), NULL);
+
 
     // ======== HANDLE PROCESSING UPDATES VIA UI CONTROL VALUE CHANGES ========
 
@@ -636,9 +672,17 @@ static void on_setting_overlay_checkbutton_changed(GtkToggleButton * p_togglebut
 }
 
 
-static void on_setting_finalbpp_combo_changed(GtkComboBox *combo, gpointer callback_data)
+static void on_setting_finalbpp_combo_changed(GtkComboBox * combo, gpointer callback_data)
 {
     dialog_settings.finalbpp = atoi(gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(combo)));
+
+    dialog_ui_update();
+}
+
+
+static void on_setting_maptoclipboardtype_combo_changed(GtkComboBox * combo, gpointer callback_data)
+{
+    dialog_settings.maptoclipboardtype = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
 
     dialog_ui_update();
 }
@@ -1089,16 +1133,8 @@ void tilemap_calculate(void) {
 
 static void dialog_ui_update(void) {
 
-    if (tilemap_recalc_needed()) {
-
-        // Tilemap calculation failed or not finished, disable copy-to-clipboard button
-        gtk_widget_set_sensitive(action_maptoclipboard_button, FALSE);
-    }
-    else {
-
-        // Tilemap calculation succeeded, enable copy-to-clipboard button
-        gtk_widget_set_sensitive(action_maptoclipboard_button, TRUE);
-    }
+    // If Tilemap calculation succeeded, enable copy-to-clipboard button, otherwise disable
+    gtk_widget_set_sensitive(action_maptoclipboard_button, (tilemap_recalc_needed() == FALSE));
 
     info_display_update();
 }
@@ -1202,27 +1238,43 @@ static void tilemap_copy_map_to_clipboard(void) {
 
     GtkClipboard *clipboard;
 
-    char            map_text_str[TILEMAP_MAX_STR];
+    char            * map_text_str;
     uint32_t        map_text_len;
 
 
     if (tilemap_recalc_needed() == FALSE) {
 
-        p_map      = tilemap_get_map();
-        p_tile_set = tilemap_get_tile_set();
+        map_text_str = malloc(TILEMAP_MAX_STR);
 
-        map_text_len = tilemap_export_c_source_to_string(map_text_str,
-                                                         TILEMAP_MAX_STR,
-                                                         p_map,
-                                                         p_tile_set);
+        if (map_text_str) {
 
-        if (map_text_len) {
-            // Get a handle to the given clipboard. You can also ask for
-            // GDK_SELECTION_PRIMARY (the X "primary selection") or
-            // GDK_SELECTION_SECONDARY.
-            clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
+            p_map      = tilemap_get_map();
+            p_tile_set = tilemap_get_tile_set();
 
-            gtk_clipboard_set_text(clipboard, map_text_str, map_text_len);
+            switch (dialog_settings.maptoclipboardtype) {
+                case EXPORT_COPY_TYPE_C:
+                    map_text_len = tilemap_export_c_source_to_string(map_text_str,
+                                                                     TILEMAP_MAX_STR,
+                                                                     p_map,
+                                                                     p_tile_set);
+                    break;
+
+                case EXPORT_COPY_TYPE_ASM_RGBDS:
+                    map_text_len = tilemap_export_asm_rgbds_source_to_string(map_text_str,
+                                                                     TILEMAP_MAX_STR,
+                                                                     p_map,
+                                                                     p_tile_set);
+                    break;
+            }
+
+
+            if (map_text_len) {
+                // Get a handle to the given clipboard.
+                clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
+                gtk_clipboard_set_text(clipboard, map_text_str, map_text_len);
+            }
+
+            free(map_text_str);
         }
     }
 }
