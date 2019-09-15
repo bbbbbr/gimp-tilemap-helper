@@ -141,7 +141,7 @@ uint32_t tilemap_export_asm_rgbds_source_to_string(char * p_dest_str, uint32_t m
             "%sTileWidth   EQU %8d\n"
             "%sTileWidth   EQU %8d\n\n"
             "SECTION \"section\", HOME\n\n"
-            "%sEntries::",
+            "%s::",
             p_prefix_str, p_map->width_in_tiles,
             p_prefix_str, p_map->height_in_tiles,
             p_prefix_str, p_map->map_width,
