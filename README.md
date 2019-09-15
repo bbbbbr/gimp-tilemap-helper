@@ -1,4 +1,4 @@
-Gimp Tile Map Plugin
+Tilemap Helper: Gimp Plug-in for Optimizing Tile Maps and Tile Sets
 ===========
 
 NOTE: The current version is rough around the edges. It needs improvement and refactoring of the source. That may come in time. For now, consider it a mostly working beta...
