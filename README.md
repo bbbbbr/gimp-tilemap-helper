@@ -21,7 +21,7 @@ Features
  * Variable Tile size
  * Tile X/Y Flipping detection
  * Export Tile Set as image -> new GIMP image
- * Export Tile Map as C text array -> Clipboard
+ * Export Tile Map as text -> Clipboard (C array, RGBDS ASM)
  * Works with indexed and 24 bit RGB images (including alpha masks)
 
 
@@ -56,5 +56,6 @@ Plug-in folder locations:
 * Max number of tiles: 8096
 * The Source Image or Layer must be an exact multiple of tile size in both dimensions
 * Greyscale images are not yet supported. Convert to RGB or indexed first
+* Map export prefix labels are saved to images as GimpParasites, so only persist across sessions when images are saved in GIMP's native XCF format
 
 ## GIMP usage hints:
