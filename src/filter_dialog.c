@@ -53,7 +53,8 @@ static void on_setting_overlay_checkbutton_changed(GtkToggleButton *, gpointer);
 static void on_setting_finalbpp_combo_changed(GtkComboBox *, gpointer);
 static void on_setting_flattened_image_checkbutton_changed(GtkToggleButton *, gpointer);
 static void on_setting_checkflip_checkbutton_changed(GtkToggleButton *, gpointer);
-static void on_setting_maptoclipboardtype_combo_changed(GtkComboBox *, gpointer);
+static void on_setting_maptoclipboard_type_combo_changed(GtkComboBox *, gpointer);
+static void on_setting_setting_maptoclipboard_prefix_entry_changed(GtkEntry *, gpointer);
 
 static void on_action_maptoclipboard_button_clicked(GtkButton *, gpointer);
 
@@ -82,7 +83,7 @@ const gchar * const finalbpp_strs[]          = { "Src Image", "1", "2", "3", "4"
 const gchar * const srcbpp_str[]             = {" ", "Source: 8", "Source: 16", "Source: 24", "Source: 32"};
 const gchar * const srcbpp_dialogtitle_str[] = {" ", "8 bits/pixel, Indexed", "16 bits/pixel, Indexed-A", "24 bits/pixel, RGB", "32 bits/pixel, RGB-A"};
 
-const gchar * const maptoclipboardtype_str[] = {"C Array",          "ASM RGBDS"};
+const gchar * const maptoclipboard_type_str[] = {"C Array",          "ASM RGBDS"};
 enum export_copy_types                         { EXPORT_COPY_TYPE_C, EXPORT_COPY_TYPE_ASM_RGBDS};
 
 const gchar * const tile_flip_str[]          = { " ", ", flip: X", ", flip: Y", ", flip: X+Y" };
@@ -108,7 +109,8 @@ static GtkWidget * setting_overlay_tileids_checkbutton;
 
 static GtkWidget * setting_finalbpp_combo;
 
-static GtkWidget * setting_maptoclipboardtype_combo;
+static GtkWidget * setting_maptoclipboard_type_combo;
+static GtkWidget * setting_maptoclipboard_prefix_entry;
 
 static GtkWidget * setting_tilesize_label;
 static GtkWidget * setting_tilesize_width_spinbutton;
@@ -146,6 +148,7 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
     GtkWidget * setting_finalbpp_label;
     GtkWidget * setting_finalbpp_hbox;
 
+    GtkWidget * maptoclipboard_prefix_label;
     GtkWidget * maptoclipboard_frame;
     GtkWidget * maptoclipboard_hbox;
 
@@ -347,19 +350,26 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
     gtk_container_set_border_width (GTK_CONTAINER (maptoclipboard_hbox), 5);
     gtk_container_add (GTK_CONTAINER (maptoclipboard_frame), maptoclipboard_hbox);
 
-        // Clipboard copy type (Load the combo box entries from a const array)
-        setting_maptoclipboardtype_combo = gtk_combo_box_text_new ();
+        // Option to specify prefix
+        maptoclipboard_prefix_label = gtk_label_new("Export Prefix");
+        setting_maptoclipboard_prefix_entry = gtk_entry_new();
+        gtk_entry_set_max_length(GTK_ENTRY(setting_maptoclipboard_prefix_entry), MAP_PREFIX_MAX_LEN);
+        gtk_entry_set_alignment (GTK_ENTRY(setting_maptoclipboard_prefix_entry), 1.0);
 
-        for (idx = 0; idx < ARRAY_LEN(maptoclipboardtype_str); idx++)
-            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(setting_maptoclipboardtype_combo), maptoclipboardtype_str[idx]);
-        gtk_combo_box_set_active(GTK_COMBO_BOX(setting_maptoclipboardtype_combo), 0);
+        // Clipboard copy type (Load the combo box entries from a const array)
+        setting_maptoclipboard_type_combo = gtk_combo_box_text_new ();
+
+        for (idx = 0; idx < ARRAY_LEN(maptoclipboard_type_str); idx++)
+            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(setting_maptoclipboard_type_combo), maptoclipboard_type_str[idx]);
+        gtk_combo_box_set_active(GTK_COMBO_BOX(setting_maptoclipboard_type_combo), 0);
 
         // Copy to clipboard button
         action_maptoclipboard_button = gtk_button_new_with_label("Copy Map -► Clipboard");
 
         gtk_box_pack_end (GTK_BOX (maptoclipboard_hbox), action_maptoclipboard_button, FALSE, FALSE, 0);
-        gtk_box_pack_end (GTK_BOX (maptoclipboard_hbox), setting_maptoclipboardtype_combo, FALSE, FALSE, 0);
-
+        gtk_box_pack_end (GTK_BOX (maptoclipboard_hbox), setting_maptoclipboard_type_combo, FALSE, FALSE, 0);
+        gtk_box_pack_end (GTK_BOX (maptoclipboard_hbox), setting_maptoclipboard_prefix_entry, FALSE, FALSE, 0);
+        gtk_box_pack_end (GTK_BOX (maptoclipboard_hbox), maptoclipboard_prefix_label, FALSE, FALSE, 0);
 
     // Attach the UI WIdgets to the table and show them all
     // gtk_table_attach_defaults (*attach_to, *widget, left_attach, right_attach, top_attach, bottom_attach)
@@ -472,7 +482,8 @@ void dialog_settings_apply_to_ui(void) {
 
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_checkflip_checkbutton),       dialog_settings.check_flip);
 
-    gtk_combo_box_set_active(GTK_COMBO_BOX(setting_maptoclipboardtype_combo), dialog_settings.maptoclipboardtype );
+    gtk_combo_box_set_active(GTK_COMBO_BOX(setting_maptoclipboard_type_combo), dialog_settings.maptoclipboard_type );
+    gtk_entry_set_text(GTK_ENTRY(setting_maptoclipboard_prefix_entry), dialog_settings.maptoclipboard_prefix_str );
 
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(setting_flattened_image_checkbutton), dialog_settings.flattened_image);
 
@@ -544,8 +555,11 @@ void dialog_settings_connect_signals(GimpDrawable *drawable) {
     g_signal_connect(G_OBJECT(setting_flattened_image_checkbutton), "toggled",
                       G_CALLBACK(on_setting_flattened_image_checkbutton_changed), NULL);
 
-    g_signal_connect (setting_maptoclipboardtype_combo, "changed",
-                      G_CALLBACK (on_setting_maptoclipboardtype_combo_changed), NULL);
+    g_signal_connect (setting_maptoclipboard_type_combo, "changed",
+                      G_CALLBACK (on_setting_maptoclipboard_type_combo_changed), NULL);
+
+    g_signal_connect (setting_maptoclipboard_prefix_entry, "changed",
+                      G_CALLBACK (on_setting_setting_maptoclipboard_prefix_entry_changed), NULL);
 
 
     // ======== HANDLE PROCESSING UPDATES VIA UI CONTROL VALUE CHANGES ========
@@ -680,11 +694,17 @@ static void on_setting_finalbpp_combo_changed(GtkComboBox * combo, gpointer call
 }
 
 
-static void on_setting_maptoclipboardtype_combo_changed(GtkComboBox * combo, gpointer callback_data)
+static void on_setting_maptoclipboard_type_combo_changed(GtkComboBox * combo, gpointer callback_data)
 {
-    dialog_settings.maptoclipboardtype = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
+    dialog_settings.maptoclipboard_type = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
+}
 
-    dialog_ui_update();
+
+static void on_setting_setting_maptoclipboard_prefix_entry_changed(GtkEntry * entry, gpointer callback_data)
+{
+  strncpy(dialog_settings.maptoclipboard_prefix_str,
+          gtk_entry_get_text(GTK_ENTRY(entry)),
+          MAP_PREFIX_MAX_LEN);
 }
 
 
@@ -1251,10 +1271,11 @@ static void tilemap_copy_map_to_clipboard(void) {
             p_map      = tilemap_get_map();
             p_tile_set = tilemap_get_tile_set();
 
-            switch (dialog_settings.maptoclipboardtype) {
+            switch (dialog_settings.maptoclipboard_type) {
                 case EXPORT_COPY_TYPE_C:
                     map_text_len = tilemap_export_c_source_to_string(map_text_str,
                                                                      TILEMAP_MAX_STR,
+                                                                     dialog_settings.maptoclipboard_prefix_str,
                                                                      p_map,
                                                                      p_tile_set);
                     break;
@@ -1262,6 +1283,7 @@ static void tilemap_copy_map_to_clipboard(void) {
                 case EXPORT_COPY_TYPE_ASM_RGBDS:
                     map_text_len = tilemap_export_asm_rgbds_source_to_string(map_text_str,
                                                                      TILEMAP_MAX_STR,
+                                                                     dialog_settings.maptoclipboard_prefix_str,
                                                                      p_map,
                                                                      p_tile_set);
                     break;

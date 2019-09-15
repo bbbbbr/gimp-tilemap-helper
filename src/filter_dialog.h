@@ -14,6 +14,8 @@
         WIDGET_TILESIZE_HEIGHT,
     };
 
+    #define MAP_PREFIX_MAX_LEN 50
+
     #define ARRAY_LEN(x)  (int)(sizeof(x) / sizeof((x)[0]))
 
 

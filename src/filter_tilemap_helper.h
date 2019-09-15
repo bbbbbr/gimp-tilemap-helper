@@ -5,6 +5,8 @@
 #ifndef __FILTER_TILEMAP_HELPER_H_
 #define __FILTER_TILEMAP_HELPER_H_
 
+    #define MAP_PREFIX_MAX_LEN 50
+
     typedef struct
     {
         gint  tile_width;
@@ -20,7 +22,9 @@
 
         gint  check_flip;
 
-        gint  maptoclipboardtype;
+        gint  maptoclipboard_type;
+
+        gchar maptoclipboard_prefix_str[MAP_PREFIX_MAX_LEN + 1];
 
     //  gint  offset_x;
     //  gint  offset_y;

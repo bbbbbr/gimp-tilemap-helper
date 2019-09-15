@@ -45,7 +45,7 @@ GimpPlugInInfo PLUG_IN_INFO = {
 
 
 // Default settings for semi-persistant plugin config
-static PluginTileMapVals plugin_config_vals = // PluginPixelArtScalerVals plugin_config_vals =
+static PluginTileMapVals plugin_config_vals =
 {
   8,  // gint  tile_width;
   8,  // gint  tile_height;
@@ -55,7 +55,8 @@ static PluginTileMapVals plugin_config_vals = // PluginPixelArtScalerVals plugin
   0,  // gint  finalbpp;
   1,  // gint flattened_image;
   0,  // gint check_flip;
-  0,  // gint maptoclipboardtype;
+  0,  // gint maptoclipboard_type;
+  "map", // gchar maptoclipboard_prefix_str[MAP_PREFIX_MAX_LEN + 1];
 };
 
 
@@ -138,6 +139,7 @@ static void run(const gchar      * name,
     GimpPDBStatusType  status = GIMP_PDB_SUCCESS;
     gint32             image_id; //, drawable_id;
     gint               dialog_response;
+    GimpParasite     * p_parasite;
 
     run_mode      = param[0].data.d_int32;
 
@@ -165,6 +167,13 @@ printf("================================= Filter Main: run mode=%d  image_id = %
 
             //  Try to retrieve plugin settings, then apply them
             gimp_get_data (PLUG_IN_PROCEDURE, &plugin_config_vals);
+
+            // Load any plugin settings from current GIMP image that were stored as a parasite
+            p_parasite = gimp_image_get_parasite(image_id, "TILEMAP_HELPER_SETTINGS");
+            if (p_parasite)
+                memcpy(&plugin_config_vals,
+                       (unsigned char *)p_parasite->data,
+                       (p_parasite->size < sizeof(PluginTileMapVals)) ? p_parasite->size : sizeof(PluginTileMapVals));
 
             // Set settings/config in dialog
             tilemap_dialog_settings_set(&plugin_config_vals);
@@ -196,9 +205,19 @@ printf("================================= Filter Main: run mode=%d  image_id = %
             tilemap_dialog_settings_set(&plugin_config_vals);
             break;
 */
+
+        // TODO: remove this?
         case GIMP_RUN_WITH_LAST_VALS:
             //  Try to retrieve plugin settings, then apply them
             gimp_get_data (PLUG_IN_PROCEDURE, &plugin_config_vals);
+
+            // Load any plugin settings from current GIMP image that were stored as a parasite
+            p_parasite = gimp_image_get_parasite(image_id, "TILEMAP_HELPER_SETTINGS");
+            if (p_parasite)
+                memcpy(&plugin_config_vals,
+                       (unsigned char *)p_parasite->data,
+                       (p_parasite->size < sizeof(PluginTileMapVals)) ? p_parasite->size : sizeof(PluginTileMapVals));
+
 
             // Set settings/config in dialog
             tilemap_dialog_settings_set(&plugin_config_vals);
@@ -233,11 +252,19 @@ printf("================================= Filter Main: run mode=%d  image_id = %
             // Set settings/config in dialog
             tilemap_dialog_settings_get(&plugin_config_vals);
 
-            // tilemap_setting_tilesize_get(&(plugin_config_vals.tile_width),
-            //                              &(plugin_config_vals.tile_height));
+            // Save plugin settings for the current instance of GIMP
             gimp_set_data (PLUG_IN_PROCEDURE,
                            &plugin_config_vals,
                            sizeof (PluginTileMapVals));
+
+            // Save/embed plugin settings into current GIMP image as a parasite
+             p_parasite = gimp_parasite_new("TILEMAP_HELPER_SETTINGS",
+                                           GIMP_PARASITE_PERSISTENT,
+                                           sizeof(PluginTileMapVals),
+                                           &plugin_config_vals);
+             gimp_image_attach_parasite(image_id, p_parasite);
+             gimp_parasite_free (p_parasite);
+
         }
     } // end : if (status == GIMP_PDB_SUCCESS)
     else {
