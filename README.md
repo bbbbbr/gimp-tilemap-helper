@@ -9,7 +9,12 @@ You can create a level map in Gimp (or other image editors) and use this plugin 
 
 This plugin is not meant to replace tile set and map editors. Instead it aims to provide quick, in-workflow feedback without having to leave GIMP to analyze tiles in another application.
 
-![Plugin showing tile map helper with an image open](https://raw.githubusercontent.com/bbbbbr/gimp-tilemap-helper/master/info/Screenshot.png)
+Download compiled executables here: 
+ * [Linux GIMP 2.8+](/bin/linux)
+ * [Windows GIMP 2.10.12+](/bin/windows)
+
+
+![Plugin showing tile map helper with an image open](/info/Screenshot.png)
 
 
 Features
@@ -39,14 +44,24 @@ OS binaries available for:
 Native compile/install on Linux using below.
 
 ```
-make
+If GIMP & build tools not yet installed:
+(example for debian/ubuntu/mint)
+ * sudo apt install gimp
+ * sudo apt install build-essential
+ * sudo apt install libgimp2.0-dev
+ 
+Then: 
+* cd gimp-rom-bin
+* make
 
-(and then copy to your GIMP plugin folder, depends on version)
-* "plugin-gimp-tilemap-helper"
+Then copy the resulting "plugin-gimp-tilemap-helper" to your GIMP plugin folder, depends on version
 
 Plug-in folder locations:
- Linux: ~/.gimp-2.8/plug-ins
+ Linux: ~/.gimp-2.8/plug-ins  , or ~/.config/GIMP/2.10/plug-ins
  Windows: C:\Program Files\GIMP 2\lib\gimp\2.0\plug-ins
+
+Guide for [Cross-compiling to Windows on Linux](https://github.com/bbbbbr/gimp-rom-bin/blob/master/doc/GIMP%20jhbuild%20for%20Windows%20on%20Linux.md)
+
 
 ```
 
