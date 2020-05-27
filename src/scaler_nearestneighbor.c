@@ -35,6 +35,8 @@ void scaler_nearest_bpp_rgb(uint8_t * sp, uint8_t * dp,
     uint8_t   src_R, src_G, src_B;
     uint32_t  line_width_scaled_bpp;
 
+    printf("scaler_nearest_bpp_rgb()...");
+
     if (scale_factor == 1) {
         // Quick 1:1 copy if scale factor is 1x
         memcpy(dp, sp, Xres * Yres * src_bpp);
@@ -43,6 +45,7 @@ void scaler_nearest_bpp_rgb(uint8_t * sp, uint8_t * dp,
         line_width_scaled_bpp = (Xres * scale_factor * src_bpp);
 
         for (y=0; y < Yres; y++) {
+            printf(" @%d", y);
             // Copy each line from the source image
             for (x=0; x < Xres; x++) {
 
@@ -71,6 +74,7 @@ void scaler_nearest_bpp_rgb(uint8_t * sp, uint8_t * dp,
 
         }
     }
+    printf("\n");
 }
 
 
@@ -89,6 +93,8 @@ void scaler_nearest_bpp_rgba(uint32_t * sp, uint32_t * dp,
     uint32_t  line_len_scaled_u8;
     uint32_t  line_len_scaled_u32;
 
+    printf("scaler_nearest_bpp_rgba()...");
+
     if (scale_factor == 1) {
         // Quick 1:1 copy if scale factor is 1x
         memcpy(dp, sp, Xres * Yres * src_bpp);
@@ -99,6 +105,9 @@ void scaler_nearest_bpp_rgba(uint32_t * sp, uint32_t * dp,
         line_len_scaled_u8    = line_len_scaled_u32 * src_bpp;
 
         for (y=0; y < Yres; y++) {
+
+            printf(" @%d", y);
+
             // Copy each line from the source image
             for (x=0; x < Xres; x++) {
 
@@ -121,6 +130,8 @@ void scaler_nearest_bpp_rgba(uint32_t * sp, uint32_t * dp,
 
         }
     }
+
+    printf("\n");
 }
 
 
@@ -144,9 +155,14 @@ void scaler_nearest_bpp_indexed(uint8_t * sp, uint8_t * dp,
     long      line_width_scaled_bpp;
     int       color_index;
 
+    printf("scaler_nearest_bpp_indexed()...");
+
     line_width_scaled_bpp = (Xres * scale_factor * dest_bpp);
 
     for (y=0; y < Yres; y++) {
+
+        printf(" @%d", y);
+
         // Copy each line from the source image
         for (x=0; x < Xres; x++) {
 
@@ -188,6 +204,8 @@ void scaler_nearest_bpp_indexed(uint8_t * sp, uint8_t * dp,
         }
 
     }
+
+    printf("\n");
 }
 
 
