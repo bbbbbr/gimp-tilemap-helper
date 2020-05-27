@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #include "win_aligned_alloc.h"
 
@@ -40,6 +41,8 @@ extern const char PLUG_IN_BINARY[];
 static int dialog_scaled_preview_check_resize(GtkWidget *, gint, gint, gint);
 
 static void dialog_source_image_free_and_reset(void);
+static void dialog_source_image_initialize(void);
+
 static gint dialog_source_image_load(GimpDrawable * drawable);
 static gint dialog_source_colormap_load(GimpDrawable * drawable);
 
@@ -416,7 +419,7 @@ gint tilemap_dialog_show (GimpDrawable *drawable)
     scaled_output_invalidate();
     tilemap_recalc_invalidate();
     overlay_redraw_invalidate();
-    dialog_source_image_free_and_reset();
+    dialog_source_image_initialize();
 
 
     gtk_widget_show (dialog);
@@ -997,6 +1000,12 @@ void tilemap_dialog_processing_run(GimpDrawable *drawable, GimpPreview  *preview
 }
 
 
+static void dialog_source_image_initialize(void) {
+
+    app_image.p_img_data = NULL;
+    app_colors.color_count = 0;
+}
+
 
 static void dialog_source_image_free_and_reset(void) {
 
@@ -1019,6 +1028,7 @@ static gint dialog_source_image_load(GimpDrawable * drawable_layer) {
     gint32         temp_image_id;
     gint32         temp_flattened_layer;
     GimpDrawable * source_drawable;
+    size_t         alloc_size;
 
     printf("Source Image: Loading (flattened=%d)...\n", dialog_settings.flattened_image);
 
@@ -1056,7 +1066,13 @@ static gint dialog_source_image_load(GimpDrawable * drawable_layer) {
 
     // Source image buffer allocated with 32 bit alignment
     // app_image.p_img_data = (uint8_t *) g_new (guint32, app_image.width * app_image.height);
+
+    // aligned_alloc expects SIZE to be a multiple of ALIGNMENT, so pad with a couple bytes if needed
+    alloc_size = app_image.size + (app_image.size % sizeof(uint32_t));
+    printf(" (allocating %zu bytes %" PRId32 " %zu) \n", alloc_size, app_image.size, (app_image.size % sizeof(uint32_t)));
+
     app_image.p_img_data = aligned_alloc(sizeof(uint32_t), app_image.size);
+
 
     // FALSE, FALSE : region will be used to read the actual drawable data
     // Initialize source pixel region with drawable

@@ -30,12 +30,12 @@
     #define SCALE_BPP_MAX     4
 
     typedef struct {
-        gint       x,y;
-        gint       width, height;
-        gint       scale_factor;
-        gint       bpp;
-        glong      size_bytes; // scaledbuf_size;
-        gboolean   valid_image;
+        int       x,y;
+        int       width, height;
+        int       scale_factor;
+        int       bpp;
+        uint32_t  size_bytes; // scaledbuf_size;
+        int       valid_image;
 
         uint8_t * p_scaledbuf;
         uint8_t * p_overlaybuf;
