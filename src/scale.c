@@ -137,12 +137,12 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
         scaled_output.size_bytes  = scaled_output.width * scaled_output.height * scaled_output.bpp;
 
         if (scaled_output.p_scaledbuf) {
-            g_free(scaled_output.p_scaledbuf);
+            free(scaled_output.p_scaledbuf);
             scaled_output.p_scaledbuf = NULL;
         }
 
         if (scaled_output.p_overlaybuf) {
-            g_free(scaled_output.p_overlaybuf);
+            free(scaled_output.p_overlaybuf);
             scaled_output.p_overlaybuf = NULL;
         }
 
@@ -154,6 +154,7 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
         scaled_output.p_scaledbuf  = (uint8_t *)aligned_alloc(sizeof(uint32_t), alloc_size);
         scaled_output.p_overlaybuf = (uint8_t *)aligned_alloc(sizeof(uint32_t), alloc_size);
         // g_new allocation here is in u32, so no need to multiply by * BYTE_SIZE_RGBA_4BPP
+        // Use matching g_free()
         // scaled_output.p_scaledbuf  = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
         // scaled_output.p_overlaybuf = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
 

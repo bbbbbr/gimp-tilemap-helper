@@ -3,8 +3,10 @@ CC      = gcc
 TARGET  = plugin-gimp-tilemap-helper
 SRC_DIR = src
 OBJ_DIR = obj
+# -std=gnu11 is a fix for aligned_alloc() return assignment warning and memory crashes with gcc
 CFLAGS  = $(shell pkg-config --cflags gtk+-2.0) \
-          $(shell pkg-config --cflags gimp-2.0)
+          $(shell pkg-config --cflags gimp-2.0) \
+          -std=gnu11
 LFLAGS  = $(shell pkg-config --libs glib-2.0) \
           $(shell pkg-config --libs gtk+-2.0) \
           $(shell pkg-config --libs gimp-2.0) \
