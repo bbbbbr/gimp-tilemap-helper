@@ -151,8 +151,8 @@ void scaled_output_check_reallocate(gint bpp_new, gint width_new, gint height_ne
         alloc_size = scaled_output.size_bytes + (scaled_output.size_bytes % sizeof(uint32_t));
         printf(" (allocating %zu bytes %" PRId32 " %zu) \n", alloc_size, scaled_output.size_bytes, (scaled_output.size_bytes % sizeof(uint32_t)));
 
-        scaled_output.p_scaledbuf  = aligned_alloc(sizeof(uint32_t), alloc_size);
-        scaled_output.p_overlaybuf = aligned_alloc(sizeof(uint32_t), alloc_size);
+        scaled_output.p_scaledbuf  = (uint8_t *)aligned_alloc(sizeof(uint32_t), alloc_size);
+        scaled_output.p_overlaybuf = (uint8_t *)aligned_alloc(sizeof(uint32_t), alloc_size);
         // g_new allocation here is in u32, so no need to multiply by * BYTE_SIZE_RGBA_4BPP
         // scaled_output.p_scaledbuf  = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);
         // scaled_output.p_overlaybuf = (uint8_t *) g_new (guint32, scaled_output.width * scaled_output.height);

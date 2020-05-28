@@ -1071,7 +1071,7 @@ static gint dialog_source_image_load(GimpDrawable * drawable_layer) {
     alloc_size = app_image.size + (app_image.size % sizeof(uint32_t));
     printf(" (allocating %zu bytes %" PRId32 " %zu) \n", alloc_size, app_image.size, (app_image.size % sizeof(uint32_t)));
 
-    app_image.p_img_data = aligned_alloc(sizeof(uint32_t), app_image.size);
+    app_image.p_img_data = (uint8_t *)aligned_alloc(sizeof(uint32_t), app_image.size);
 
 
     // FALSE, FALSE : region will be used to read the actual drawable data
