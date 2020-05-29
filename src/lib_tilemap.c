@@ -67,6 +67,9 @@ int tilemap_initialize(image_data * p_src_img, int tile_width, int tile_height, 
     // width x height in tiles (if every map tile is unique)
     tile_map.size = (tile_map.width_in_tiles * tile_map.height_in_tiles);
 
+    tile_map.tile_id_list = NULL;
+    tile_map.tile_attribs_list = NULL;
+
     tile_map.tile_id_list = malloc(tile_map.size * sizeof(uint32_t));
     if (!tile_map.tile_id_list)
             return(false);
@@ -308,6 +311,7 @@ void tile_calc_alternate_hashes(tile_data * p_tile, tile_data flip_tiles[]) {
     tile_flip_x(&flip_tiles[0], &flip_tiles[1]);
     p_tile->hash[3] = MurmurHash2( flip_tiles[1].p_img_raw, flip_tiles[1].raw_size_bytes, 0xF0A5); // len is u8count
 
+    // TODO: POSSIBLE BUG? why is the  x + y flipped output copied on top of the original source tile?
     memcpy(p_tile->p_img_raw, flip_tiles[1].p_img_raw, flip_tiles[1].raw_size_bytes);
 }
 
