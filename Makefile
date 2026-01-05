@@ -40,8 +40,9 @@ clean:
 	rm $(TARGET)
 
 install:
-	mkdir -p $(DESTDIR)$(exec_prefix)/lib/gimp/2.0/plug-ins
-	cp $(TARGET) $(DESTDIR)$(exec_prefix)/lib/gimp/2.0/plug-ins
+	cp $(TARGET) ~/.config/GIMP/2.10/plug-ins/$(TARGET)
+#	mkdir -p $(DESTDIR)$(exec_prefix)/lib/gimp/2.0/plug-ins
+#	cp $(TARGET) $(DESTDIR)$(exec_prefix)/lib/gimp/2.0/plug-ins
 
 uninstall:
 	rm $(DESTDIR)$(exec_prefix)/lib/gimp/2.0/plug-ins/$(TARGET)
