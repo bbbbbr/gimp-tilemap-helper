@@ -1253,7 +1253,7 @@ static void info_display_update(void) {
     } // end: if (tilemap_recalc_needed() == FALSE) {
     else {
         gtk_label_set_markup(GTK_LABEL(tile_info_display),
-            g_markup_printf_escaped("<b>Tile Info</b>\n\n** No tiles available **\n ► Check tile sizing ◄" ));
+            g_markup_printf_escaped("<b>Tile Info</b>\n\n** No tiles available **\n ► Check tile sizing ◄\n(or tile count > 8096)" ));
 
         // Padding at the end of the printout to keep widget text height constant
         gtk_label_set_markup(GTK_LABEL(memory_info_display),
